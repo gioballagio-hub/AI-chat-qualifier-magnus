@@ -1,18 +1,31 @@
 import nodemailer from "nodemailer";
-import type { LeadSummary, ContactInfo, BuyerData, SellerData } from "@/types/lead";
-import { LABEL_MAP, FIELD_LABELS } from "@/constants/questions";
+import type { LeadSummary, ContactInfo, MagnusLeadData } from "@/types/lead";
+import { FIELD_LABELS } from "@/constants/questions";
 
-function resolveValue(field: string, value: unknown): string {
-  if (!value) return "—";
-  const map = LABEL_MAP[field];
-  if (map && typeof value === "string" && map[value]) return map[value];
+function resolveValue(value: unknown): string {
+  if (!value || (typeof value === "string" && value.trim() === "")) return "—";
   return String(value);
 }
 
-function buildDataTable(data: BuyerData | SellerData): string {
-  return Object.entries(data)
-    .filter(([k]) => k !== "zonaRaw")
-    .map(([k, v]) => `  • ${FIELD_LABELS[k] ?? k}: ${resolveValue(k, v)}`)
+function buildDataTable(data: MagnusLeadData): string {
+  const DISPLAY_FIELDS = [
+    "ragioneSociale",
+    "partitaIVA",
+    "descrizioneProdotto",
+    "categoriaProdotto",
+    "brandProdotto",
+    "codiceProdotto",
+    "vinCode",
+    "noteAggiuntive",
+  ];
+
+  return DISPLAY_FIELDS
+    .map((k) => {
+      const v = (data as Record<string, unknown>)[k];
+      if (!v || (typeof v === "string" && v.trim() === "")) return null;
+      return `  • ${FIELD_LABELS[k] ?? k}: ${resolveValue(v)}`;
+    })
+    .filter(Boolean)
     .join("\n");
 }
 
@@ -35,9 +48,15 @@ function createTransport() {
 }
 
 const scoreEmoji: Record<string, string> = {
-  CALDO: "🔥",
-  TIEPIDO: "☀️",
-  FREDDO: "❄️",
+  ALTA: "🔥",
+  MEDIA: "☀️",
+  BASSA: "❄️",
+};
+
+const clienteTypeLabel: Record<string, string> = {
+  AZIENDA: "Azienda",
+  PRIVATO: "Privato",
+  INDEFINITO: "Indefinito",
 };
 
 export async function sendCustomerEmail(
@@ -46,31 +65,31 @@ export async function sendCustomerEmail(
 ): Promise<void> {
   const transport = createTransport();
   const from = process.env.SMTP_FROM ?? process.env.SMTP_USER;
-  const tipoLabel = summary.type === "BUYER" ? "Acquisto" : "Vendita";
-
-  const dataTable = buildDataTable(summary.data);
+  const data = summary.data as MagnusLeadData;
+  const dataTable = buildDataTable(data);
 
   const text = `
-Ciao ${contactInfo.nome},
+Gentile ${contactInfo.nome},
 
-Grazie per aver compilato il nostro questionario. Abbiamo ricevuto la tua richiesta e un nostro agente ti contatterà al più presto.
+Grazie per aver inviato la tua richiesta a Magnus SRL. Abbiamo ricevuto i tuoi dati e il nostro team commerciale ti contatterà il prima possibile.
 
 === RIEPILOGO DELLA TUA RICHIESTA ===
-Tipo: ${tipoLabel}
+Tipo cliente: ${clienteTypeLabel[data.clienteType] ?? data.clienteType}
 
 ${dataTable}
 
 Cordiali saluti,
-Il Team dell'Agenzia
+Il Team Commerciale Magnus SRL
 
 ---
-Hai ricevuto questa email perché hai compilato il modulo sul nostro sito.
+Ricorda: l'ordine minimo è di €300.
+Hai ricevuto questa email perché hai compilato il modulo sul sito Magnus SRL.
 `.trim();
 
   await transport.sendMail({
     from,
     to: contactInfo.email,
-    subject: `La tua richiesta di ${tipoLabel.toLowerCase()} è stata ricevuta ✓`,
+    subject: `La tua richiesta Magnus SRL è stata ricevuta ✓`,
     text,
   });
 }
@@ -86,24 +105,27 @@ export async function sendAgencyEmail(
 
   const transport = createTransport();
   const from = process.env.SMTP_FROM ?? process.env.SMTP_USER;
-  const tipoLabel = summary.type === "BUYER" ? "COMPRARE" : "VENDERE";
+  const data = summary.data as MagnusLeadData;
   const emoji = scoreEmoji[summary.score] ?? "";
-  const dataTable = buildDataTable(summary.data);
+  const tipoCliente = clienteTypeLabel[data.clienteType] ?? data.clienteType;
+  const dataTable = buildDataTable(data);
+
+  const ragioneSociale = data.ragioneSociale ? `\n  • Ragione Sociale: ${data.ragioneSociale}` : "";
+  const partitaIVA = data.partitaIVA ? `\n  • Partita IVA: ${data.partitaIVA}` : "";
 
   const text = `
-Nuovo lead ricevuto tramite il qualificatore AI.
+Nuova richiesta ricevuta tramite il qualificatore Magnus SRL.
 
 === DATI DI CONTATTO ===
   • Nome: ${contactInfo.nome} ${contactInfo.cognome}
-  • Età: ${contactInfo.eta} anni
-  • Email: ${contactInfo.email}
+  • Email: ${contactInfo.email}${contactInfo.telefono ? `\n  • Telefono: ${contactInfo.telefono}` : ""}
+  • Tipo cliente: ${tipoCliente}${ragioneSociale}${partitaIVA}
 
-=== QUALIFICA ===
+=== PRIORITÀ ===
   • Score: ${emoji} ${summary.score}
-  • Completeness: ${Math.round(summary.completeness)}%
-  • Tipo: ${tipoLabel}
+  • Completezza: ${Math.round(summary.completeness)}%
 
-=== DATI RICHIESTA ===
+=== PRODOTTO RICHIESTO ===
 ${dataTable}
 
 === PROSSIMO PASSO ===
@@ -116,7 +138,7 @@ Data: ${new Date(summary.createdAt).toLocaleString("it-IT")}
   await transport.sendMail({
     from,
     to: agencyEmail,
-    subject: `${emoji} Nuovo Lead ${summary.score} — ${contactInfo.nome} ${contactInfo.cognome} vuole ${tipoLabel}`,
+    subject: `${emoji} Nuova richiesta ${summary.score} — ${tipoCliente}: ${contactInfo.nome} ${contactInfo.cognome}`,
     text,
   });
 }
