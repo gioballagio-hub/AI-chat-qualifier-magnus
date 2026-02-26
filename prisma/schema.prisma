@@ -62,6 +62,18 @@ model Settings {
   reminderGiorni            Int     @default(3)     // giorni di inattività prima del reminder
 }
 
+model ActivityLog {
+  id        String   @id @default(cuid())
+  leadId    String
+  autore    String
+  azione    String   // es: "COMMERCIALE_ASSEGNATO", "PIPELINE_AGGIORNATO", "NOTA_AGGIUNTA", "LEAD_ELIMINATO", "LEAD_RIPRISTINATO"
+  dettagli  String?  // JSON stringificato con dati aggiuntivi (es. da/a)
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([createdAt(sort: Desc)])
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique

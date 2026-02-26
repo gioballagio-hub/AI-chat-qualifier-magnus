@@ -5,6 +5,7 @@ import { dispatchWebhook } from "@/lib/integration";
 import { logger } from "@/lib/logger";
 import { getSessionFromCookies } from "@/lib/auth";
 import { sendCommercialEmail } from "@/lib/email";
+import { logActivity } from "@/lib/activity";
 import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 
 const UpdateSchema = z.object({
@@ -153,6 +154,26 @@ export async function PATCH(
   const updated = await prisma.lead.update({ where: { id }, data: updateData });
   const summary = toSummary(updated);
 
+  // Activity log — pipeline
+  if (parsed.data.statoLead && parsed.data.statoLead !== lead.statoLead) {
+    await logActivity({
+      leadId: id,
+      autore: session.nome,
+      azione: "PIPELINE_AGGIORNATO",
+      dettagli: { da: lead.statoLead, a: parsed.data.statoLead },
+    });
+  }
+
+  // Activity log — stato
+  if (parsed.data.status && parsed.data.status !== lead.status) {
+    await logActivity({
+      leadId: id,
+      autore: session.nome,
+      azione: "STATO_AGGIORNATO",
+      dettagli: { da: lead.status, a: parsed.data.status },
+    });
+  }
+
   // Invia email al commerciale se è stato appena assegnato (nome diverso dal precedente)
   if (nuovoCommerciale && nuovoCommerciale !== vecchioCommerciale) {
     try {
@@ -176,6 +197,14 @@ export async function PATCH(
         leadId: id,
       });
     }
+
+    // Activity log — assegnazione commerciale
+    await logActivity({
+      leadId: id,
+      autore: session.nome,
+      azione: "COMMERCIALE_ASSEGNATO",
+      dettagli: { da: vecchioCommerciale, a: nuovoCommerciale },
+    });
   }
 
   return NextResponse.json(summary);
@@ -197,5 +226,6 @@ export async function DELETE(
 
   // Soft delete: imposta deletedAt invece di cancellare
   await prisma.lead.update({ where: { id }, data: { deletedAt: new Date() } });
+  await logActivity({ leadId: id, autore: session.nome, azione: "LEAD_ELIMINATO" });
   return NextResponse.json({ ok: true });
 }

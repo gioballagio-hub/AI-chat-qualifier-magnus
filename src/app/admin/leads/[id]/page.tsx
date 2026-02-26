@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Card, { CardBody, CardHeader } from "@/components/ui/Card";
 import { useIsAdmin } from "@/lib/session-context";
 import NoteSection from "@/components/admin/NoteSection";
+import ActivitySection from "@/components/admin/ActivitySection";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -330,6 +331,16 @@ export default function LeadDetailPage() {
 
       {/* Note interne */}
       <NoteSection leadId={lead.id} />
+
+      {/* Activity log */}
+      <Card>
+        <CardHeader>
+          <span className="text-sm font-medium text-gray-700">🕐 Cronologia attività</span>
+        </CardHeader>
+        <CardBody>
+          <ActivitySection leadId={lead.id} />
+        </CardBody>
+      </Card>
 
       <p className="text-xs text-gray-400">
         ID: {lead.id} · Creato: {new Date(lead.createdAt).toLocaleString("it-IT")}
