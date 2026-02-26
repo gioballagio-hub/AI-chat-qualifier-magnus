@@ -148,6 +148,46 @@ Magnus SRL — Pannello Commerciale
   });
 }
 
+export async function sendReminderEmail(
+  commercialeEmail: string,
+  commercialeNome: string,
+  leads: { id: string; nome: string | null; cognome: string | null; score: string; createdAt: Date; statoLead: string }[]
+): Promise<void> {
+  const transport = createTransport();
+  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+
+  const leadLines = leads
+    .map((l) => {
+      const emoji = scoreEmoji[l.score] ?? "";
+      const nome = [l.nome, l.cognome].filter(Boolean).join(" ") || "Anonimo";
+      const giorni = Math.floor((Date.now() - l.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+      return `  ${emoji} ${nome} — assegnato ${giorni} giorn${giorni === 1 ? "o" : "i"} fa\n     ${baseUrl}/admin/leads/${l.id}`;
+    })
+    .join("\n\n");
+
+  const text = `
+Ciao ${commercialeNome},
+
+hai ${leads.length} lead assegnat${leads.length === 1 ? "o" : "i"} che non sono ancora stati lavorati:
+
+${leadLines}
+
+Accedi al pannello per gestirli:
+${baseUrl}/admin
+
+---
+Magnus SRL — Promemoria automatico
+`.trim();
+
+  await transport.sendMail({
+    from,
+    to: commercialeEmail,
+    subject: `⏰ Promemoria: ${leads.length} lead da lavorare`,
+    text,
+  });
+}
+
 export async function sendAgencyEmail(
   contactInfo: ContactInfo,
   summary: LeadSummary

@@ -8,6 +8,8 @@ const SettingsSchema = z.object({
   webhookUrl: z.string().url().optional().or(z.literal("")),
   webhookSecret: z.string().max(255).optional(),
   notificheEmailCommerciale: z.boolean().optional(),
+  reminderAbilitato: z.boolean().optional(),
+  reminderGiorni: z.number().int().min(1).max(30).optional(),
 });
 
 export async function GET() {
@@ -23,6 +25,8 @@ export async function GET() {
     webhookUrl: settings.webhookUrl ?? "",
     webhookSecretSet: !!settings.webhookSecret,
     notificheEmailCommerciale: settings.notificheEmailCommerciale ?? true,
+    reminderAbilitato: settings.reminderAbilitato ?? false,
+    reminderGiorni: settings.reminderGiorni ?? 3,
   });
 }
 
@@ -42,7 +46,7 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const { integrationMode, webhookUrl, webhookSecret, notificheEmailCommerciale } = parsed.data;
+  const { integrationMode, webhookUrl, webhookSecret, notificheEmailCommerciale, reminderAbilitato, reminderGiorni } = parsed.data;
 
   const updateData: Record<string, unknown> = {
     integrationMode,
@@ -53,6 +57,12 @@ export async function PUT(req: NextRequest) {
   }
   if (notificheEmailCommerciale !== undefined) {
     updateData["notificheEmailCommerciale"] = notificheEmailCommerciale;
+  }
+  if (reminderAbilitato !== undefined) {
+    updateData["reminderAbilitato"] = reminderAbilitato;
+  }
+  if (reminderGiorni !== undefined) {
+    updateData["reminderGiorni"] = reminderGiorni;
   }
 
   await prisma.settings.upsert({

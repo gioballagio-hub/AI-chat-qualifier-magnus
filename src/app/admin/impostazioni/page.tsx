@@ -15,6 +15,8 @@ export default async function ImpostazioniPage() {
     webhookUrl: settings.webhookUrl ?? "",
     webhookSecretSet: !!settings.webhookSecret,
     notificheEmailCommerciale: settings.notificheEmailCommerciale ?? true,
+    reminderAbilitato: settings.reminderAbilitato ?? false,
+    reminderGiorni: settings.reminderGiorni ?? 3,
   };
 
   return (
@@ -38,11 +40,19 @@ export default async function ImpostazioniPage() {
   "event": "lead.created",
   "lead": {
     "id": "...",
-    "type": "BUYER" | "SELLER",
-    "data": { ... },
-    "score": "CALDO" | "TIEPIDO" | "FREDDO",
+    "clienteType": "AZIENDA" | "PRIVATO",
+    "data": {
+      "ragioneSociale": "...",
+      "partitaIVA": "...",
+      "descrizioneProdotto": "...",
+      "categoriaProdotto": "Ricambi",
+      "brandProdotto": "Mopar",
+      "codiceProdotto": "...",
+      "vinCode": "..."
+    },
+    "score": "ALTA" | "MEDIA" | "BASSA",
     "completeness": 80,
-    "missingFields": ["mutuo"],
+    "missingFields": ["codiceProdotto"],
     "nextStep": "...",
     "createdAt": "2024-01-01T..."
   }

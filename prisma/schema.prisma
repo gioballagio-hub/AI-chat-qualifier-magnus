@@ -58,6 +58,8 @@ model Settings {
   webhookUrl      String?
   webhookSecret   String?
   notificheEmailCommerciale Boolean @default(true) // invia email al commerciale quando viene assegnato
+  reminderAbilitato         Boolean @default(false) // invia reminder per lead non lavorati
+  reminderGiorni            Int     @default(3)     // giorni di inattività prima del reminder
 }
 
 model User {
