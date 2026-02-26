@@ -3,16 +3,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dispatchWebhook } from "@/lib/integration";
 import { logger } from "@/lib/logger";
-import type { LeadSummary, LeadType } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
 
 const UpdateSchema = z.object({
   status: z.enum(["NEW", "CONTACTED", "ARCHIVED"]).optional(),
+  commercialeAssegnato: z.string().nullable().optional(),
   resend: z.boolean().optional(),
 });
 
 function toSummary(l: {
   id: string;
-  type: string;
+  clienteType: string;
   data: unknown;
   score: string;
   completeness: number;
@@ -24,15 +25,16 @@ function toSummary(l: {
   consentGiven: boolean;
   nome: string | null;
   cognome: string | null;
-  eta: number | null;
   emailContatto: string | null;
+  telefono: string | null;
+  commercialeAssegnato: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): LeadSummary {
   return {
     id: l.id,
-    type: l.type as LeadType,
-    data: l.data as LeadSummary["data"],
+    clienteType: l.clienteType as ClienteType,
+    data: l.data as MagnusLeadData,
     score: l.score as LeadSummary["score"],
     completeness: l.completeness,
     missingFields: l.missingFields as string[],
@@ -43,8 +45,9 @@ function toSummary(l: {
     consentGiven: l.consentGiven,
     nome: l.nome,
     cognome: l.cognome,
-    eta: l.eta,
     emailContatto: l.emailContatto,
+    telefono: l.telefono,
+    commercialeAssegnato: l.commercialeAssegnato,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
   };
@@ -82,6 +85,9 @@ export async function PUT(
 
   const updateData: Record<string, unknown> = {};
   if (parsed.data.status) updateData["status"] = parsed.data.status;
+  if (parsed.data.commercialeAssegnato !== undefined) {
+    updateData["commercialeAssegnato"] = parsed.data.commercialeAssegnato;
+  }
 
   if (parsed.data.resend) {
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });
@@ -89,10 +95,39 @@ export async function PUT(
       const summary = toSummary(lead);
       const sent = await dispatchWebhook(summary, settings);
       if (sent) updateData["sentToIntegration"] = true;
-      else {
-        logger.warn("Re-invio webhook fallito", { leadId: id });
-      }
+      else logger.warn("Re-invio webhook fallito", { leadId: id });
     }
+  }
+
+  const updated = await prisma.lead.update({ where: { id }, data: updateData });
+  return NextResponse.json(toSummary(updated));
+}
+
+// PATCH dedicato per aggiornamento rapido commerciale assegnato
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON non valido" }, { status: 400 });
+  }
+
+  const parsed = UpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Dati non validi" }, { status: 400 });
+  }
+
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return NextResponse.json({ error: "Lead non trovato" }, { status: 404 });
+
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.status) updateData["status"] = parsed.data.status;
+  if (parsed.data.commercialeAssegnato !== undefined) {
+    updateData["commercialeAssegnato"] = parsed.data.commercialeAssegnato;
   }
 
   const updated = await prisma.lead.update({ where: { id }, data: updateData });

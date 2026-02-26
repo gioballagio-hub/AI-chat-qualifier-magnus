@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { LeadSummary, MagnusLeadData } from "@/types/lead";
 import ScoreBadge from "./ScoreBadge";
@@ -7,6 +8,7 @@ import Badge from "@/components/ui/Badge";
 
 interface LeadTableProps {
   leads: LeadSummary[];
+  commerciali?: string[]; // lista nomi commerciali disponibili
 }
 
 const statusVariant = {
@@ -22,7 +24,58 @@ const clienteTypeLabel: Record<string, string> = {
   INDEFINITO: "Indefinito",
 };
 
-export default function LeadTable({ leads }: LeadTableProps) {
+function AssegnaDropdown({
+  leadId,
+  currentValue,
+  commerciali,
+}: {
+  leadId: string;
+  currentValue: string | null;
+  commerciali: string[];
+}) {
+  const [value, setValue] = useState(currentValue ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleChange(newValue: string) {
+    setValue(newValue);
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commercialeAssegnato: newValue || null,
+        }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={saving}
+        className={`w-full rounded-lg border px-2 py-1 text-xs outline-none transition-colors
+          ${saving ? "opacity-50 cursor-wait" : "cursor-pointer hover:border-blue-400"}
+          ${value ? "border-blue-200 bg-blue-50 text-blue-700 font-medium" : "border-gray-200 bg-white text-gray-400"}
+        `}
+      >
+        <option value="">— Non assegnato</option>
+        {commerciali.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+      {saving && (
+        <span className="absolute right-1 top-1 text-xs text-gray-400">💾</span>
+      )}
+    </div>
+  );
+}
+
+export default function LeadTable({ leads, commerciali = [] }: LeadTableProps) {
   if (leads.length === 0) {
     return (
       <div className="rounded-xl border border-gray-100 bg-white py-16 text-center text-gray-400">
@@ -42,6 +95,7 @@ export default function LeadTable({ leads }: LeadTableProps) {
             <th className="px-4 py-3 font-medium text-gray-500">Stato</th>
             <th className="px-4 py-3 font-medium text-gray-500">Categoria</th>
             <th className="px-4 py-3 font-medium text-gray-500">Brand</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Commerciale</th>
             <th className="px-4 py-3 font-medium text-gray-500">Data</th>
             <th className="px-4 py-3"></th>
           </tr>
@@ -87,13 +141,27 @@ export default function LeadTable({ leads }: LeadTableProps) {
                     {statusLabel[lead.status]}
                   </Badge>
                 </td>
-                {/* Categoria prodotto */}
+                {/* Categoria */}
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {d.categoriaProdotto ?? "—"}
                 </td>
                 {/* Brand */}
                 <td className="px-4 py-3 text-gray-600 text-xs max-w-[100px] truncate">
                   {d.brandProdotto ?? "—"}
+                </td>
+                {/* Commerciale assegnato */}
+                <td className="px-4 py-3 min-w-[140px]">
+                  {commerciali.length > 0 ? (
+                    <AssegnaDropdown
+                      leadId={lead.id}
+                      currentValue={lead.commercialeAssegnato}
+                      commerciali={commerciali}
+                    />
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      {lead.commercialeAssegnato ?? "—"}
+                    </span>
+                  )}
                 </td>
                 {/* Data */}
                 <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">

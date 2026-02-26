@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LeadTable from "@/components/admin/LeadTable";
-import type { LeadSummary, LeadType } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ interface Props {
   searchParams: Promise<{
     score?: string;
     status?: string;
-    type?: string;
+    clienteType?: string;
     page?: string;
   }>;
 }
@@ -23,9 +23,9 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const where: Record<string, string> = {};
   if (params.score) where["score"] = params.score;
   if (params.status) where["status"] = params.status;
-  if (params.type) where["type"] = params.type;
+  if (params.clienteType) where["clienteType"] = params.clienteType;
 
-  const [leads, total] = await Promise.all([
+  const [leads, total, utenti] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -33,12 +33,17 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
       take: limit,
     }),
     prisma.lead.count({ where }),
+    // Recupera la lista dei commerciali dalla tabella User (Feature 3)
+    // Se la tabella non esiste ancora restituisce array vuoto
+    prisma.user.findMany({ select: { nome: true }, orderBy: { nome: "asc" } }).catch(() => []),
   ]);
+
+  const commerciali = utenti.map((u: { nome: string }) => u.nome);
 
   const summaries: LeadSummary[] = (leads as Lead[]).map((l) => ({
     id: l.id,
-    type: l.type as LeadType,
-    data: l.data as LeadSummary["data"],
+    clienteType: l.clienteType as ClienteType,
+    data: l.data as MagnusLeadData,
     score: l.score as LeadSummary["score"],
     completeness: l.completeness,
     missingFields: l.missingFields as string[],
@@ -49,8 +54,9 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
     consentGiven: l.consentGiven,
     nome: l.nome,
     cognome: l.cognome,
-    eta: l.eta,
     emailContatto: l.emailContatto,
+    telefono: l.telefono ?? null,
+    commercialeAssegnato: l.commercialeAssegnato ?? null,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
   }));
@@ -61,8 +67,8 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Lead</h1>
-          <p className="text-sm text-gray-500">{total} lead totali</p>
+          <h1 className="text-xl font-bold text-gray-900">Richieste</h1>
+          <p className="text-sm text-gray-500">{total} richieste totali</p>
         </div>
         <a
           href="/api/admin/leads/export"
@@ -76,12 +82,12 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
       <div className="flex flex-wrap gap-2">
         {[
           { label: "Tutti", params: {} },
-          { label: "🔥 CALDO", params: { score: "CALDO" } },
-          { label: "☀️ TIEPIDO", params: { score: "TIEPIDO" } },
-          { label: "❄️ FREDDO", params: { score: "FREDDO" } },
+          { label: "🔥 Alta priorità", params: { score: "ALTA" } },
+          { label: "☀️ Media priorità", params: { score: "MEDIA" } },
+          { label: "❄️ Bassa priorità", params: { score: "BASSA" } },
           { label: "Nuovi", params: { status: "NEW" } },
-          { label: "Acquisto", params: { type: "BUYER" } },
-          { label: "Vendita", params: { type: "SELLER" } },
+          { label: "🏢 Aziende", params: { clienteType: "AZIENDA" } },
+          { label: "👤 Privati", params: { clienteType: "PRIVATO" } },
         ].map((filter) => {
           const sp = new URLSearchParams(filter.params as Record<string, string>).toString();
           return (
@@ -96,7 +102,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
         })}
       </div>
 
-      <LeadTable leads={summaries} />
+      <LeadTable leads={summaries} commerciali={commerciali} />
 
       {/* Paginazione */}
       {totalPages > 1 && (
