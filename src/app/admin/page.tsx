@@ -172,20 +172,61 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
 
       {/* Paginazione */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <Link
-              key={p}
-              href={buildQs({ page: String(p) })}
-              className={`rounded-lg px-3 py-1.5 text-sm ${
-                p === page
-                  ? "bg-blue-600 text-white"
-                  : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              {p}
-            </Link>
-          ))}
+        <div className="flex items-center justify-between text-sm">
+          <p className="text-gray-500">
+            Pagina {page} di {totalPages} · {total} lead
+          </p>
+          <div className="flex items-center gap-1">
+            {/* Precedente */}
+            {page > 1 ? (
+              <Link
+                href={buildQs({ page: String(page - 1) })}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                ← Prec.
+              </Link>
+            ) : (
+              <span className="rounded-lg border border-gray-100 px-3 py-1.5 text-gray-300 cursor-default">← Prec.</span>
+            )}
+
+            {/* Numeri pagina con ellipsis */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === "…" ? (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-gray-400">…</span>
+                ) : (
+                  <Link
+                    key={p}
+                    href={buildQs({ page: String(p) })}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${
+                      p === page
+                        ? "bg-blue-600 text-white font-medium"
+                        : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {p}
+                  </Link>
+                )
+              )}
+
+            {/* Successivo */}
+            {page < totalPages ? (
+              <Link
+                href={buildQs({ page: String(page + 1) })}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Succ. →
+              </Link>
+            ) : (
+              <span className="rounded-lg border border-gray-100 px-3 py-1.5 text-gray-300 cursor-default">Succ. →</span>
+            )}
+          </div>
         </div>
       )}
     </div>
