@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   // Assicura che clienteType sia incluso nel data
   const leadData: MagnusLeadData = {
-    ...(data as MagnusLeadData),
+    ...(data as unknown as MagnusLeadData),
     clienteType: clienteType as ClienteType,
   };
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     const summary: LeadSummary = {
       id: lead.id,
       clienteType: lead.clienteType as ClienteType,
-      data: lead.data as MagnusLeadData,
+      data: lead.data as unknown as MagnusLeadData,
       score: lead.score as LeadSummary["score"],
       completeness: lead.completeness,
       missingFields: lead.missingFields as string[],
@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
       cognome: lead.cognome,
       emailContatto: lead.emailContatto,
       telefono: lead.telefono ?? null,
+      commercialeAssegnato: lead.commercialeAssegnato ?? null,
       createdAt: lead.createdAt.toISOString(),
       updatedAt: lead.updatedAt.toISOString(),
     };

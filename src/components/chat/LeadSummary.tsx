@@ -37,7 +37,7 @@ export default function LeadSummary({ summary, customerEmail }: LeadSummaryProps
   ];
 
   const fields = DISPLAY_FIELDS
-    .map((key) => [key, (data as Record<string, unknown>)[key]] as [string, unknown])
+    .map((key) => [key, (data as unknown as Record<string, unknown>)[key]] as [string, unknown])
     .filter(([, val]) => !!val && (typeof val !== "string" || val.trim() !== ""));
 
   const tipoLabel = CLIENTE_TYPE_LABEL[data.clienteType] ?? data.clienteType;

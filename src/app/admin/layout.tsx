@@ -3,17 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SessionContext } from "@/lib/session-context";
+import type { SessionInfo } from "@/lib/session-context";
 
 const NAV = [
   { href: "/admin", label: "Richieste", exact: true },
   { href: "/admin/impostazioni", label: "Impostazioni", exact: false },
   { href: "/admin/utenti", label: "Utenti", exact: false, adminOnly: true },
 ];
-
-interface SessionInfo {
-  nome: string;
-  ruolo: string;
-}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,6 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isAdmin = session?.ruolo === "ADMIN";
 
   return (
+    <SessionContext.Provider value={session}>
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-100 bg-white px-6 py-3">
         <div className="mx-auto max-w-6xl flex items-center justify-between">
@@ -81,5 +79,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
       <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
     </div>
+    </SessionContext.Provider>
   );
 }

@@ -43,7 +43,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const summaries: LeadSummary[] = (leads as Lead[]).map((l) => ({
     id: l.id,
     clienteType: l.clienteType as ClienteType,
-    data: l.data as MagnusLeadData,
+    data: l.data as unknown as MagnusLeadData,
     score: l.score as LeadSummary["score"],
     completeness: l.completeness,
     missingFields: l.missingFields as string[],

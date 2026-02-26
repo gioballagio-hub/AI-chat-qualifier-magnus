@@ -1,36 +1,33 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
-import { LABEL_MAP, FIELD_LABELS } from "@/constants/questions";
-import type { BuyerData, SellerData } from "@/types/lead";
+import { FIELD_LABELS } from "@/constants/questions";
+import type { MagnusLeadData } from "@/types/lead";
 import type { Lead } from "@prisma/client";
-
-function resolveLabel(field: string, value: unknown): string {
-  if (!value) return "";
-  const map = LABEL_MAP[field];
-  if (map && typeof value === "string" && map[value]) return map[value];
-  return String(value);
-}
 
 export async function GET() {
   const leads = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
 
   const rows = (leads as Lead[]).map((l) => {
-    const d = l.data as BuyerData & SellerData;
+    const d = l.data as unknown as MagnusLeadData;
     return {
       ID: l.id,
-      Tipo: l.type === "BUYER" ? "Compratore" : "Venditore",
+      "Tipo cliente": l.clienteType,
+      "Ragione sociale": d.ragioneSociale ?? "",
+      "P.IVA": d.partitaIVA ?? "",
+      "Nome contatto": [l.nome, l.cognome].filter(Boolean).join(" "),
+      Email: l.emailContatto ?? "",
+      Telefono: l.telefono ?? "",
       Score: l.score,
       Completezza: `${Math.round(l.completeness)}%`,
       Stato: l.status,
-      [FIELD_LABELS["zona"] ?? "Zona"]: d.zona ?? "",
-      [FIELD_LABELS["tipologia"] ?? "Tipologia"]: resolveLabel("tipologia", d.tipologia),
-      [FIELD_LABELS["budgetMin"] ?? "Budget"]: resolveLabel("budgetMin", d.budgetMin),
-      [FIELD_LABELS["metratura"] ?? "Metratura"]: resolveLabel("metratura", d.metratura),
-      [FIELD_LABELS["stato"] ?? "Stato immobile"]: resolveLabel("stato", d.stato),
-      [FIELD_LABELS["tempistiche"] ?? "Tempistiche"]: resolveLabel("tempistiche", d.tempistiche),
-      [FIELD_LABELS["mutuo"] ?? "Mutuo"]: resolveLabel("mutuo", d.mutuo),
-      Note: d.note ?? "",
+      Descrizione: d.descrizioneProdotto ?? "",
+      Categoria: d.categoriaProdotto ?? "",
+      Brand: d.brandProdotto ?? "",
+      [FIELD_LABELS["codiceProdotto"] ?? "Codice prodotto"]: d.codiceProdotto ?? "",
+      [FIELD_LABELS["vinCode"] ?? "VIN"]: d.vinCode ?? "",
+      Note: d.noteAggiuntive ?? "",
+      Commerciale: l.commercialeAssegnato ?? "",
       "Prossimo step": l.nextStep,
       "Webhook inviato": l.sentToIntegration ? "Sì" : "No",
       "Data creazione": new Date(l.createdAt).toLocaleString("it-IT"),
@@ -45,7 +42,7 @@ export async function GET() {
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="lead-export-${Date.now()}.xlsx"`,
+      "Content-Disposition": `attachment; filename="lead-magnus-${Date.now()}.xlsx"`,
     },
   });
 }

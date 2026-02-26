@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dispatchWebhook } from "@/lib/integration";
 import { logger } from "@/lib/logger";
+import { getSessionFromCookies } from "@/lib/auth";
 import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
 
 const UpdateSchema = z.object({
@@ -67,6 +68,11 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
+  }
+
   const { id } = await params;
   let body: unknown;
   try {
@@ -108,6 +114,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
+  }
+
   const { id } = await params;
   let body: unknown;
   try {
@@ -132,4 +143,22 @@ export async function PATCH(
 
   const updated = await prisma.lead.update({ where: { id }, data: updateData });
   return NextResponse.json(toSummary(updated));
+}
+
+// DELETE — solo ADMIN
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSessionFromCookies();
+  if (!session || session.ruolo !== "ADMIN") {
+    return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return NextResponse.json({ error: "Lead non trovato" }, { status: 404 });
+
+  await prisma.lead.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
-import type { ZoneExtractResult } from "@/types/chat";
 import { logger } from "@/lib/logger";
+
+interface ZoneExtractResult {
+  zona: string;
+  confidence: "high" | "low";
+  raw: string;
+}
 
 const ExtractSchema = z.object({
   text: z.string().min(1).max(500),

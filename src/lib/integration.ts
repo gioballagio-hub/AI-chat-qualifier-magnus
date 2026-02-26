@@ -16,7 +16,7 @@ export async function dispatchWebhook(
     event: "lead.created",
     lead: {
       id: summary.id,
-      type: summary.type,
+      clienteType: summary.clienteType,
       data: summary.data,
       score: summary.score,
       completeness: summary.completeness,

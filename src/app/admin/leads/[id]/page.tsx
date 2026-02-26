@@ -8,6 +8,7 @@ import ScoreBadge from "@/components/admin/ScoreBadge";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card, { CardBody, CardHeader } from "@/components/ui/Card";
+import { useIsAdmin } from "@/lib/session-context";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -25,10 +26,12 @@ function resolveValue(field: string, value: unknown): string {
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const isAdmin = useIsAdmin();
   const [lead, setLead] = useState<LeadSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [resending, setResending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
@@ -78,6 +81,20 @@ export default function LeadDetailPage() {
     }
   };
 
+  const deleteLead = async () => {
+    if (!confirm("Eliminare questo lead? L'operazione non è reversibile.")) return;
+    setDeleting(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Errore eliminazione");
+      router.push("/admin");
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return <div className="py-12 text-center text-gray-400">Caricamento…</div>;
   }
@@ -97,7 +114,7 @@ export default function LeadDetailPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => router.push("/admin")}
           className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer"
@@ -105,9 +122,18 @@ export default function LeadDetailPage() {
           ← Lista lead
         </button>
         <h1 className="text-xl font-bold text-gray-900">
-          {lead.type === "BUYER" ? "🏠 Acquisto" : "💰 Vendita"}
+          {lead.clienteType === "AZIENDA" ? "🏢 Azienda" : "👤 Privato"}
         </h1>
         <ScoreBadge score={lead.score} />
+        {isAdmin && (
+          <button
+            onClick={deleteLead}
+            disabled={deleting}
+            className="ml-auto text-xs text-red-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
+          >
+            {deleting ? "Eliminando…" : "🗑 Elimina lead"}
+          </button>
+        )}
       </div>
 
       {msg && (
@@ -136,12 +162,6 @@ export default function LeadDetailPage() {
                   </dd>
                 </div>
               )}
-              {lead.eta && (
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Età</dt>
-                  <dd className="font-medium text-gray-800">{lead.eta} anni</dd>
-                </div>
-              )}
               {lead.emailContatto && (
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Email</dt>
@@ -151,6 +171,16 @@ export default function LeadDetailPage() {
                       className="text-blue-600 hover:underline"
                     >
                       {lead.emailContatto}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {lead.telefono && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Telefono</dt>
+                  <dd className="font-medium text-gray-800">
+                    <a href={`tel:${lead.telefono}`} className="text-blue-600 hover:underline">
+                      {lead.telefono}
                     </a>
                   </dd>
                 </div>
@@ -232,17 +262,19 @@ export default function LeadDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Webhook</p>
-              <Badge variant={lead.sentToIntegration ? "new" : "archived"}>
-                {lead.sentToIntegration ? "Inviato" : "Non inviato"}
-              </Badge>
+          {isAdmin && (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400">Webhook</p>
+                <Badge variant={lead.sentToIntegration ? "new" : "archived"}>
+                  {lead.sentToIntegration ? "Inviato" : "Non inviato"}
+                </Badge>
+              </div>
+              <Button onClick={resend} loading={resending} variant="secondary" size="sm">
+                Re-invia webhook
+              </Button>
             </div>
-            <Button onClick={resend} loading={resending} variant="secondary" size="sm">
-              Re-invia webhook
-            </Button>
-          </div>
+          )}
         </CardBody>
       </Card>
 

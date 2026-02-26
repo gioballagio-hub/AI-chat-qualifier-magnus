@@ -17,7 +17,7 @@ export interface CompletenessResult {
 }
 
 export function calcCompleteness(data: MagnusLeadData): CompletenessResult {
-  const d = data as Record<string, unknown>;
+  const d = data as unknown as Record<string, unknown>;
   const isAzienda = data.clienteType === "AZIENDA";
 
   // Campi da valutare in base al tipo cliente

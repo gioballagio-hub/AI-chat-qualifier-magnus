@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { LeadSummary, LeadType } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -9,12 +9,12 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "20")));
   const score = searchParams.get("score");
   const status = searchParams.get("status");
-  const type = searchParams.get("type");
+  const clienteType = searchParams.get("clienteType");
 
   const where: Record<string, unknown> = {};
   if (score) where["score"] = score;
   if (status) where["status"] = status;
-  if (type) where["type"] = type;
+  if (clienteType) where["clienteType"] = clienteType;
 
   const [leads, total] = await Promise.all([
     prisma.lead.findMany({
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
 
   const summaries: LeadSummary[] = (leads as Lead[]).map((l) => ({
     id: l.id,
-    type: l.type as LeadType,
-    data: l.data as LeadSummary["data"],
+    clienteType: l.clienteType as ClienteType,
+    data: l.data as unknown as MagnusLeadData,
     score: l.score as LeadSummary["score"],
     completeness: l.completeness,
     missingFields: l.missingFields as string[],
@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
     consentGiven: l.consentGiven,
     nome: l.nome,
     cognome: l.cognome,
-    eta: l.eta,
     emailContatto: l.emailContatto,
+    telefono: l.telefono ?? null,
+    commercialeAssegnato: l.commercialeAssegnato ?? null,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
   }));

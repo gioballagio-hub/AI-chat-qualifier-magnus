@@ -1,7 +1,13 @@
 "use client";
 
-import type { ZoneExtractResult } from "@/types/chat";
 import Button from "@/components/ui/Button";
+
+// Tipo locale — ZoneExtractResult rimosso dai tipi chat
+interface ZoneExtractResult {
+  zona: string;
+  confidence: "high" | "low";
+  raw: string;
+}
 
 interface ZoneConfirmProps {
   result: ZoneExtractResult;

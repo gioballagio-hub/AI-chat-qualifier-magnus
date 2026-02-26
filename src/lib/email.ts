@@ -21,7 +21,7 @@ function buildDataTable(data: MagnusLeadData): string {
 
   return DISPLAY_FIELDS
     .map((k) => {
-      const v = (data as Record<string, unknown>)[k];
+      const v = (data as unknown as Record<string, unknown>)[k];
       if (!v || (typeof v === "string" && v.trim() === "")) return null;
       return `  • ${FIELD_LABELS[k] ?? k}: ${resolveValue(v)}`;
     })
