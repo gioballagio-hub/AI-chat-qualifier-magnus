@@ -20,7 +20,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const limit = 20;
 
-  const where: Record<string, string> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
   if (params.score) where["score"] = params.score;
   if (params.status) where["status"] = params.status;
   if (params.clienteType) where["clienteType"] = params.clienteType;

@@ -36,6 +36,7 @@ model Lead {
   codiceProdotto    String?
   vinCode           String?
   commercialeAssegnato String? // nome o ID del commerciale assegnato
+  deletedAt         DateTime? // soft delete — null = attivo, valorizzato = eliminato
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

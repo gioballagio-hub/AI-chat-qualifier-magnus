@@ -6,7 +6,7 @@ import type { MagnusLeadData } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 export async function GET() {
-  const leads = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
+  const leads = await prisma.lead.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } });
 
   const rows = (leads as Lead[]).map((l) => {
     const d = l.data as unknown as MagnusLeadData;

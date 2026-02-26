@@ -46,6 +46,7 @@ export interface LeadSummary {
   emailContatto: string | null;
   telefono: string | null;
   commercialeAssegnato: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

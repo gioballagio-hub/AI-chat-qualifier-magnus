@@ -145,7 +145,7 @@ export async function PATCH(
   return NextResponse.json(toSummary(updated));
 }
 
-// DELETE — solo ADMIN
+// DELETE — soft delete, solo ADMIN
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -159,6 +159,7 @@ export async function DELETE(
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return NextResponse.json({ error: "Lead non trovato" }, { status: 404 });
 
-  await prisma.lead.delete({ where: { id } });
+  // Soft delete: imposta deletedAt invece di cancellare
+  await prisma.lead.update({ where: { id }, data: { deletedAt: new Date() } });
   return NextResponse.json({ ok: true });
 }

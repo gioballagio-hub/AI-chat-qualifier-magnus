@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin", label: "Richieste", exact: true },
   { href: "/admin/impostazioni", label: "Impostazioni", exact: false },
   { href: "/admin/utenti", label: "Utenti", exact: false, adminOnly: true },
+  { href: "/admin/cestino", label: "🗑 Cestino", exact: false, adminOnly: true },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

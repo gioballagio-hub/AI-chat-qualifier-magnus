@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const clienteType = searchParams.get("clienteType");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
   if (score) where["score"] = score;
   if (status) where["status"] = status;
   if (clienteType) where["clienteType"] = clienteType;
