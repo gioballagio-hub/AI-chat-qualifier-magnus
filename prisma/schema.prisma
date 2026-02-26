@@ -1,0 +1,38 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id                String   @id @default(cuid())
+  type              String   // "BUYER" | "SELLER"
+  data              Json
+  score             String   // "CALDO" | "TIEPIDO" | "FREDDO"
+  completeness      Float
+  missingFields     Json     // string[]
+  status            String   @default("NEW") // "NEW" | "CONTACTED" | "ARCHIVED"
+  consentGiven      Boolean  @default(false)
+  ipHash            String?
+  nextStep          String
+  sentToIntegration Boolean  @default(false)
+  // Dati contatto
+  nome              String?
+  cognome           String?
+  eta               Int?
+  emailContatto     String?
+  emailInviata      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Settings {
+  id              Int     @id @default(1)
+  integrationMode String  @default("WEBHOOK")
+  webhookUrl      String?
+  webhookSecret   String?
+}
