@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import type { ChatState, ChatMessage } from "@/types/chat";
 import type { ClienteType, LeadSummary, ContactInfo } from "@/types/lead";
 import { AZIENDA_STEPS, PRIVATO_STEPS } from "@/constants/questions";
+import { extractFromText } from "@/lib/extractFromText";
 import ChatBubble from "./ChatBubble";
 import QuestionStep from "./QuestionStep";
 import LeadSummaryComponent from "./LeadSummary";
@@ -41,6 +42,17 @@ const CONTACT_INFO_MSG =
 
 const CONSENT_MSG =
   "Perfetto! Prima di inviare la tua richiesta, ho bisogno del tuo consenso al trattamento dei dati inseriti ai sensi del GDPR.";
+
+// Campi che possono essere estratti automaticamente dalla descrizione
+const EXTRACTABLE_FIELDS = ["categoriaProdotto", "brandProdotto", "codiceProdotto", "vinCode"] as const;
+
+// Etichette leggibili per i campi estratti
+const EXTRACT_LABELS: Record<string, string> = {
+  categoriaProdotto: "Categoria",
+  brandProdotto: "Brand",
+  codiceProdotto: "Codice prodotto",
+  vinCode: "Numero di telaio (VIN)",
+};
 
 export default function ChatContainer() {
   const initialMessages = useMemo(() => {
@@ -104,6 +116,45 @@ export default function ChatContainer() {
   const getSteps = (clienteType: ClienteType | null) =>
     clienteType === "AZIENDA" ? AZIENDA_STEPS : PRIVATO_STEPS;
 
+  /**
+   * Dato un set di risposte pre-compilate e uno step index di partenza,
+   * avanza automaticamente saltando tutti gli step già coperti
+   * e accumula messaggi di conferma per ciascuno.
+   */
+  const skipExtractedSteps = useCallback(
+    (
+      startIndex: number,
+      currentAnswers: Record<string, string>,
+      currentMessages: ChatMessage[],
+      clienteType: ClienteType | null
+    ): { index: number; answers: Record<string, string>; messages: ChatMessage[] } => {
+      const steps = getSteps(clienteType);
+      let idx = startIndex;
+      let answers = { ...currentAnswers };
+      let messages = [...currentMessages];
+
+      while (idx < steps.length) {
+        const step = steps[idx]!;
+        const extracted = answers[step.id];
+
+        // Se il campo è stato estratto automaticamente, saltalo con messaggio di conferma
+        if (extracted && EXTRACTABLE_FIELDS.includes(step.id as typeof EXTRACTABLE_FIELDS[number])) {
+          const label = EXTRACT_LABELS[step.id] ?? step.id;
+          messages = [
+            ...messages,
+            agentMsg(`✅ Ho rilevato dalla tua descrizione — ${label}: **${extracted}**. Passo alla prossima domanda.`),
+          ];
+          idx++;
+        } else {
+          break;
+        }
+      }
+
+      return { index: idx, answers, messages };
+    },
+    []
+  );
+
   // --- Handlers ---
 
   const selectType = useCallback((type: ClienteType) => {
@@ -111,7 +162,6 @@ export default function ChatContainer() {
     const steps = getSteps(type);
 
     if (type === "PRIVATO") {
-      // Prima mostra il messaggio di avviso, poi fa partire le domande
       setState((s) => ({
         ...s,
         clienteType: type,
@@ -157,6 +207,42 @@ export default function ChatContainer() {
         const id = fieldId ?? step?.id ?? "";
         const newAnswers = { ...s.answers, [id]: value };
         const messages = msgs ?? s.messages;
+
+        // --- Logica di skip+pre-fill dopo descrizioneProdotto ---
+        if (id === "descrizioneProdotto" && value.trim().length > 0) {
+          const extracted = extractFromText(value);
+          const preFilledAnswers = { ...newAnswers };
+
+          // Pre-compila i campi estratti nelle risposte
+          if (extracted.categoriaProdotto) preFilledAnswers.categoriaProdotto = extracted.categoriaProdotto;
+          if (extracted.brandProdotto) preFilledAnswers.brandProdotto = extracted.brandProdotto;
+          if (extracted.codiceProdotto) preFilledAnswers.codiceProdotto = extracted.codiceProdotto;
+          if (extracted.vinCode) preFilledAnswers.vinCode = extracted.vinCode;
+
+          const nextIndex = s.currentStepIndex + 1;
+
+          // Salta gli step già coperti dall'estrazione
+          const { index: finalIndex, answers: finalAnswers, messages: finalMessages } =
+            skipExtractedSteps(nextIndex, preFilledAnswers, messages, s.clienteType);
+
+          if (finalIndex < steps.length) {
+            return {
+              ...s,
+              answers: finalAnswers,
+              currentStepIndex: finalIndex,
+              messages: [...finalMessages, agentMsg(steps[finalIndex]!.question)],
+            };
+          }
+
+          return {
+            ...s,
+            answers: finalAnswers,
+            phase: "CONTACT_INFO",
+            messages: [...finalMessages, agentMsg(CONTACT_INFO_MSG)],
+          };
+        }
+
+        // --- Avanzamento normale ---
         const nextIndex = s.currentStepIndex + 1;
 
         if (nextIndex < steps.length) {
@@ -168,7 +254,6 @@ export default function ChatContainer() {
           };
         }
 
-        // All questions done → contact info
         return {
           ...s,
           answers: newAnswers,
@@ -177,7 +262,7 @@ export default function ChatContainer() {
         };
       });
     },
-    []
+    [skipExtractedSteps]
   );
 
   const handleAnswer = useCallback(
@@ -274,24 +359,9 @@ export default function ChatContainer() {
           <div className="mb-3 flex justify-start">
             <div className="rounded-2xl rounded-bl-sm bg-gray-100 px-4 py-3">
               <span className="flex gap-1">
-                <span
-                  className="animate-bounce text-gray-400"
-                  style={{ animationDelay: "0ms" }}
-                >
-                  •
-                </span>
-                <span
-                  className="animate-bounce text-gray-400"
-                  style={{ animationDelay: "150ms" }}
-                >
-                  •
-                </span>
-                <span
-                  className="animate-bounce text-gray-400"
-                  style={{ animationDelay: "300ms" }}
-                >
-                  •
-                </span>
+                <span className="animate-bounce text-gray-400" style={{ animationDelay: "0ms" }}>•</span>
+                <span className="animate-bounce text-gray-400" style={{ animationDelay: "150ms" }}>•</span>
+                <span className="animate-bounce text-gray-400" style={{ animationDelay: "300ms" }}>•</span>
               </span>
             </div>
           </div>
@@ -314,9 +384,7 @@ export default function ChatContainer() {
               className="mt-2"
               variant="danger"
               size="sm"
-              onClick={() =>
-                setState((s) => ({ ...s, phase: "CONSENT", error: null }))
-              }
+              onClick={() => setState((s) => ({ ...s, phase: "CONSENT", error: null }))}
             >
               Riprova
             </Button>
@@ -346,7 +414,7 @@ export default function ChatContainer() {
           </div>
         )}
 
-        {/* Step 2b: messaggio avviso privati — bottone per procedere */}
+        {/* Step 2b: messaggio avviso privati */}
         {state.phase === "PRIVATE_WARNING" && !isTyping && displayed.length >= state.messages.length && (
           <div className="px-4 py-4">
             <Button onClick={startQuestionsAfterWarning} className="w-full" size="lg">
@@ -356,15 +424,13 @@ export default function ChatContainer() {
         )}
 
         {/* Domande */}
-        {state.phase === "QUESTIONS" &&
-          !isTyping &&
-          displayed.length >= state.messages.length && (
-            <QuestionStep
-              key={steps[state.currentStepIndex]?.id}
-              step={steps[state.currentStepIndex]!}
-              onAnswer={handleAnswer}
-            />
-          )}
+        {state.phase === "QUESTIONS" && !isTyping && displayed.length >= state.messages.length && (
+          <QuestionStep
+            key={steps[state.currentStepIndex]?.id}
+            step={steps[state.currentStepIndex]!}
+            onAnswer={handleAnswer}
+          />
+        )}
 
         {/* Dati di contatto */}
         {state.phase === "CONTACT_INFO" && (
@@ -379,9 +445,7 @@ export default function ChatContainer() {
                 type="checkbox"
                 className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600"
                 checked={state.consentGiven}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, consentGiven: e.target.checked }))
-                }
+                onChange={(e) => setState((s) => ({ ...s, consentGiven: e.target.checked }))}
               />
               <span>
                 Acconsento al trattamento dei dati forniti da Magnus SRL per la gestione
@@ -390,12 +454,7 @@ export default function ChatContainer() {
                 (Reg. UE 2016/679).
               </span>
             </label>
-            <Button
-              onClick={handleSubmit}
-              disabled={!state.consentGiven}
-              className="w-full"
-              size="lg"
-            >
+            <Button onClick={handleSubmit} disabled={!state.consentGiven} className="w-full" size="lg">
               Invia la mia richiesta →
             </Button>
           </div>
