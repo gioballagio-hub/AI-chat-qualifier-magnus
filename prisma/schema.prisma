@@ -10,9 +10,9 @@ datasource db {
 
 model Lead {
   id                String   @id @default(cuid())
-  type              String   // "BUYER" | "SELLER"
+  clienteType       String   @default("INDEFINITO") // "AZIENDA" | "PRIVATO" | "INDEFINITO"
   data              Json
-  score             String   // "CALDO" | "TIEPIDO" | "FREDDO"
+  score             String   // "ALTA" | "MEDIA" | "BASSA"
   completeness      Float
   missingFields     Json     // string[]
   status            String   @default("NEW") // "NEW" | "CONTACTED" | "ARCHIVED"
@@ -23,9 +23,17 @@ model Lead {
   // Dati contatto
   nome              String?
   cognome           String?
-  eta               Int?
+  eta               Int?     // mantenuto per retrocompatibilità, non più usato nel form
   emailContatto     String?
+  telefono          String?
   emailInviata      Boolean  @default(false)
+  // Campi Magnus estratti per ricerca rapida in dashboard
+  ragioneSociale    String?
+  partitaIVA        String?
+  categoriaProdotto String?  // "Accessori" | "Ricambi" | "Lubrificanti" | "Vernici"
+  brandProdotto     String?
+  codiceProdotto    String?
+  vinCode           String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

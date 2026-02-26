@@ -1,8 +1,14 @@
-import type { BuyerData, SellerData, LeadType } from "@/types/lead";
+import type { MagnusLeadData } from "@/types/lead";
 import { FIELD_LABELS } from "@/constants/questions";
 
-const BUYER_CORE = ["zona", "tipologia", "budgetMin", "tempistiche", "mutuo"] as const;
-const SELLER_CORE = ["zona", "tipologia", "metratura", "stato", "tempistiche"] as const;
+// Campi obbligatori per tutti (misurano la completezza base)
+const CORE_FIELDS = ["descrizioneProdotto", "categoriaProdotto"] as const;
+
+// Campi aggiuntivi che aumentano la completezza se presenti
+const BONUS_FIELDS = ["brandProdotto", "codiceProdotto", "vinCode"] as const;
+
+// Campi richiesti solo per le aziende
+const AZIENDA_FIELDS = ["ragioneSociale", "partitaIVA"] as const;
 
 export interface CompletenessResult {
   completeness: number;
@@ -10,18 +16,20 @@ export interface CompletenessResult {
   missingLabels: string[];
 }
 
-export function calcCompleteness(
-  type: LeadType,
-  data: BuyerData | SellerData
-): CompletenessResult {
-  const coreFields = type === "BUYER" ? BUYER_CORE : SELLER_CORE;
+export function calcCompleteness(data: MagnusLeadData): CompletenessResult {
   const d = data as Record<string, unknown>;
+  const isAzienda = data.clienteType === "AZIENDA";
 
-  const missing = coreFields.filter((f) => !d[f]);
-  const filled = coreFields.filter((f) => !!d[f]);
+  // Campi da valutare in base al tipo cliente
+  const allFields = isAzienda
+    ? [...AZIENDA_FIELDS, ...CORE_FIELDS, ...BONUS_FIELDS]
+    : [...CORE_FIELDS, ...BONUS_FIELDS];
+
+  const missing = allFields.filter((f) => !d[f] || (d[f] as string).trim() === "");
+  const filled = allFields.filter((f) => !!d[f] && (d[f] as string).trim() !== "");
 
   return {
-    completeness: Math.round((filled.length / coreFields.length) * 100),
+    completeness: Math.round((filled.length / allFields.length) * 100),
     missingFields: missing,
     missingLabels: missing.map((f) => FIELD_LABELS[f] ?? f),
   };

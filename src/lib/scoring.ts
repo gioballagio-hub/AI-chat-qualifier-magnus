@@ -1,41 +1,37 @@
-import type { BuyerData, SellerData, LeadScore, LeadType } from "@/types/lead";
+import type { MagnusLeadData, LeadScore } from "@/types/lead";
 
-const SHORT_TIMELINES = ["entro_1_mese", "1_3_mesi"];
-const MEDIUM_TIMELINES = ["3_6_mesi", "6_12_mesi"];
-const COLD_TIMELINES = ["oltre_12_mesi", "solo_informazioni"];
+/**
+ * Logica di priorità Magnus SRL:
+ * ALTA  → Azienda con richiesta dettagliata (codice prodotto O VIN presenti)
+ * MEDIA → Azienda senza dettagli completi, oppure Privato con richiesta dettagliata
+ * BASSA → Privato con richiesta vaga o incompleta
+ *
+ * Nota: il valore economico dell'ordine non è verificabile in chat,
+ * la valutazione finale spetta al commerciale.
+ */
+export function calcScore(data: MagnusLeadData): LeadScore {
+  const isAzienda = data.clienteType === "AZIENDA";
+  const hasDettagliProdotto = !!(data.codiceProdotto || data.vinCode);
+  const hasDescrizioneCompleta = !!(
+    data.descrizioneProdotto && data.descrizioneProdotto.trim().length > 20
+  );
 
-export function scoreBuyer(data: BuyerData): LeadScore {
-  const t = data.tempistiche ?? "";
-  if (COLD_TIMELINES.includes(t)) return "FREDDO";
-  const hasBudget = !!data.budgetMin && data.budgetMin !== "non_definito";
-  const hasZona = !!data.zona;
-  if (SHORT_TIMELINES.includes(t) && hasBudget && hasZona) return "CALDO";
-  if (MEDIUM_TIMELINES.includes(t) || !hasBudget || !hasZona) return "TIEPIDO";
-  return "TIEPIDO";
+  if (isAzienda && hasDettagliProdotto) return "ALTA";
+  if (isAzienda && hasDescrizioneCompleta) return "ALTA";
+  if (isAzienda) return "MEDIA";
+  if (!isAzienda && hasDettagliProdotto && hasDescrizioneCompleta) return "MEDIA";
+  if (!isAzienda && hasDescrizioneCompleta) return "MEDIA";
+  return "BASSA";
 }
 
-export function scoreSeller(data: SellerData): LeadScore {
-  const t = data.tempistiche ?? "";
-  if (COLD_TIMELINES.includes(t)) return "FREDDO";
-  const hasDetails = !!(data.metratura || data.tipologia);
-  const hasStato = !!data.stato;
-  if (SHORT_TIMELINES.includes(t) && hasDetails && hasStato) return "CALDO";
-  if (MEDIUM_TIMELINES.includes(t)) return "TIEPIDO";
-  return "FREDDO";
-}
-
-export function calcScore(type: LeadType, data: BuyerData | SellerData): LeadScore {
-  return type === "BUYER"
-    ? scoreBuyer(data as BuyerData)
-    : scoreSeller(data as SellerData);
-}
-
-export function calcNextStep(type: LeadType, score: LeadScore): string {
-  if (score === "CALDO" && type === "BUYER")
-    return "Contatta entro 24 ore: cliente pronto all'acquisto";
-  if (score === "CALDO" && type === "SELLER")
-    return "Sopralluogo urgente: venditore con tempistiche strette";
-  if (score === "TIEPIDO")
-    return "Pianifica un follow-up entro 1 settimana";
-  return "Inserisci in newsletter o nurturing automatico";
+export function calcNextStep(score: LeadScore, clienteType: MagnusLeadData["clienteType"]): string {
+  if (score === "ALTA" && clienteType === "AZIENDA")
+    return "Contatta entro 24 ore: azienda con richiesta dettagliata";
+  if (score === "ALTA")
+    return "Contatta entro 24 ore: richiesta dettagliata con codice/VIN";
+  if (score === "MEDIA" && clienteType === "AZIENDA")
+    return "Segui entro 48 ore: azienda — richiedi dettagli prodotto mancanti";
+  if (score === "MEDIA")
+    return "Valuta la richiesta: privato con descrizione sufficiente";
+  return "Bassa priorità: privato con richiesta generica. Valuta se procedere (min. ordine €300)";
 }

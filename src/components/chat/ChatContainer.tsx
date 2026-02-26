@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import type { ChatState, ChatMessage, ZoneExtractResult } from "@/types/chat";
-import type { LeadType, LeadSummary, ContactInfo } from "@/types/lead";
-import { BUYER_STEPS, SELLER_STEPS } from "@/constants/questions";
+import type { ChatState, ChatMessage } from "@/types/chat";
+import type { ClienteType, LeadSummary, ContactInfo } from "@/types/lead";
+import { AZIENDA_STEPS, PRIVATO_STEPS } from "@/constants/questions";
 import ChatBubble from "./ChatBubble";
 import QuestionStep from "./QuestionStep";
-import ZoneConfirm from "./ZoneConfirm";
 import LeadSummaryComponent from "./LeadSummary";
 import ContactForm from "./ContactForm";
 import Button from "@/components/ui/Button";
@@ -24,36 +23,37 @@ function userMsg(content: string): ChatMessage {
 }
 
 const WELCOME =
-  "Ciao! Sono l'assistente dell'agenzia. Ti aiuto a qualificare la tua richiesta in pochi passi.";
+  "Ciao! Sono l'assistente di Magnus SRL. Ti aiuto a inviare la tua richiesta di ricambi, accessori o lubrificanti in pochi passi.";
+
+const TYPE_SELECTION_MSG =
+  "Prima di iniziare: stai facendo questa richiesta come privato o come azienda?";
+
+const PRIVATE_WARNING = `Gentile cliente, Magnus SRL serve esclusivamente aziende. In quanto privato, ti informiamo che la gestione della tua richiesta non è garantita.
+
+Per aumentare le probabilità di essere seguito, ti invitiamo a compilare il form nel modo più dettagliato possibile: maggiore sarà la precisione della tua richiesta, maggiori saranno le possibilità di ricevere assistenza.
+
+Ti ricordiamo inoltre che, per motivi di gestione operativa, non è possibile evadere ordini inferiori a €300. Se il tuo ordine attuale non raggiunge questa soglia, valuta l'acquisto di un tagliando o di accessori utili per raggiungere il valore minimo.
+
+Puoi comunque procedere compilando la richiesta qui sotto.`;
 
 const CONTACT_INFO_MSG =
-  "Ottimo! Quasi finito. Per inviarti il riepilogo via email ho bisogno di alcuni dati di contatto.";
+  "Ottimo! Quasi finito. Per poter gestire la tua richiesta ho bisogno di alcuni dati di contatto.";
 
 const CONSENT_MSG =
-  "Perfetto! Prima di inviare la tua richiesta, ho bisogno del tuo consenso al trattamento dei dati inseriti.";
+  "Perfetto! Prima di inviare la tua richiesta, ho bisogno del tuo consenso al trattamento dei dati inseriti ai sensi del GDPR.";
 
-interface Props {
-  initialType?: LeadType;
-}
-
-export default function ChatContainer({ initialType }: Props) {
+export default function ChatContainer() {
   const initialMessages = useMemo(() => {
-    const msgs: ChatMessage[] = [agentMsg(WELCOME)];
-    if (initialType) {
-      const steps = initialType === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
-      if (steps[0]) msgs.push(agentMsg(steps[0].question));
-    }
-    return msgs;
+    return [agentMsg(WELCOME), agentMsg(TYPE_SELECTION_MSG)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [state, setState] = useState<ChatState>({
-    phase: initialType ? "QUESTIONS" : "TYPE_SELECTION",
-    leadType: initialType ?? null,
+    phase: "TYPE_SELECTION",
+    clienteType: null,
     currentStepIndex: 0,
     answers: {},
     messages: initialMessages,
-    pendingZoneExtract: null,
     contactInfo: null,
     consentGiven: false,
     summary: null,
@@ -63,7 +63,6 @@ export default function ChatContainer({ initialType }: Props) {
   // --- Typing animation ---
   const [displayed, setDisplayed] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
   const processedCount = useRef(0);
   const isTypingRef = useRef(false);
 
@@ -74,15 +73,11 @@ export default function ChatContainer({ initialType }: Props) {
     const next = all[processedCount.current]!;
 
     if (next.role === "user") {
-      // User messages appear immediately
       processedCount.current++;
       setDisplayed((d) => [...d, next]);
       return;
     }
 
-    // Agent messages: show typing indicator first
-    // NOTE: usiamo isTypingRef (non state) così setIsTyping(true) non causa
-    // un re-render che cancella il timer tramite la cleanup function
     isTypingRef.current = true;
     setIsTyping(true);
     const timer = setTimeout(() => {
@@ -96,9 +91,7 @@ export default function ChatContainer({ initialType }: Props) {
       clearTimeout(timer);
       isTypingRef.current = false;
     };
-  // displayed.length (non isTyping) come dep: il re-render da setIsTyping
-  // non cambia displayed.length quindi non scatta il cleanup che annullerebbe il timer
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.messages.length, displayed.length]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -107,29 +100,59 @@ export default function ChatContainer({ initialType }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [displayed, isTyping, state.phase]);
 
+  // --- Helpers ---
+  const getSteps = (clienteType: ClienteType | null) =>
+    clienteType === "AZIENDA" ? AZIENDA_STEPS : PRIVATO_STEPS;
+
   // --- Handlers ---
 
-  const selectType = useCallback((type: LeadType) => {
-    const label = type === "BUYER" ? "Voglio comprare" : "Voglio vendere";
-    const steps = type === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
+  const selectType = useCallback((type: ClienteType) => {
+    const label = type === "AZIENDA" ? "Sono un'azienda" : "Sono un privato";
+    const steps = getSteps(type);
+
+    if (type === "PRIVATO") {
+      // Prima mostra il messaggio di avviso, poi fa partire le domande
+      setState((s) => ({
+        ...s,
+        clienteType: type,
+        phase: "PRIVATE_WARNING",
+        currentStepIndex: 0,
+        answers: { clienteType: "PRIVATO" },
+        messages: [
+          ...s.messages,
+          userMsg(label),
+          agentMsg(PRIVATE_WARNING),
+        ],
+      }));
+    } else {
+      setState((s) => ({
+        ...s,
+        clienteType: type,
+        phase: "QUESTIONS",
+        currentStepIndex: 0,
+        answers: { clienteType: "AZIENDA" },
+        messages: [
+          ...s.messages,
+          userMsg(label),
+          agentMsg(steps[0]!.question),
+        ],
+      }));
+    }
+  }, []);
+
+  const startQuestionsAfterWarning = useCallback(() => {
+    const steps = getSteps("PRIVATO");
     setState((s) => ({
       ...s,
-      leadType: type,
       phase: "QUESTIONS",
-      currentStepIndex: 0,
-      messages: [
-        ...s.messages,
-        userMsg(label),
-        agentMsg(steps[0]!.question),
-      ],
+      messages: [...s.messages, agentMsg(steps[0]!.question)],
     }));
   }, []);
 
   const advanceStep = useCallback(
     (value: string, msgs?: ChatMessage[], fieldId?: string) => {
       setState((s) => {
-        if (!s.leadType) return s;
-        const steps = s.leadType === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
+        const steps = getSteps(s.clienteType);
         const step = steps[s.currentStepIndex];
         const id = fieldId ?? step?.id ?? "";
         const newAnswers = { ...s.answers, [id]: value };
@@ -145,7 +168,7 @@ export default function ChatContainer({ initialType }: Props) {
           };
         }
 
-        // All questions done → ask for contact info
+        // All questions done → contact info
         return {
           ...s,
           answers: newAnswers,
@@ -158,9 +181,8 @@ export default function ChatContainer({ initialType }: Props) {
   );
 
   const handleAnswer = useCallback(
-    async (value: string) => {
-      if (!state.leadType) return;
-      const steps = state.leadType === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
+    (value: string) => {
+      const steps = getSteps(state.clienteType);
       const step = steps[state.currentStepIndex];
       if (!step) return;
 
@@ -168,83 +190,11 @@ export default function ChatContainer({ initialType }: Props) {
         (step.options?.find((o) => o.value === value)?.label ?? value) || "(saltato)";
       const newMessages: ChatMessage[] = [...state.messages, userMsg(displayValue)];
 
-      if (step.type === "ai_zone" && value.trim()) {
-        setState((s) => ({ ...s, messages: newMessages }));
-        setAiLoading(true);
-        try {
-          const res = await fetch("/api/ai/extract", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: value }),
-          });
-          const result: ZoneExtractResult = await res.json();
-          setState((s) => ({
-            ...s,
-            pendingZoneExtract: result,
-            phase: "AI_CONFIRM",
-          }));
-        } catch {
-          advanceStep(value, newMessages, step.id);
-        } finally {
-          setAiLoading(false);
-        }
-        return;
-      }
-
       advanceStep(value, newMessages, step.id);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state]
+    [state, advanceStep]
   );
-
-  const handleZoneConfirm = useCallback(
-    (zona: string) => {
-      setState((s) => {
-        if (!s.leadType || !s.pendingZoneExtract) return s;
-        const steps = s.leadType === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
-        const newAnswers = { ...s.answers, zona, zonaRaw: s.pendingZoneExtract.raw };
-        const nextIndex = s.currentStepIndex + 1;
-        const messages = [...s.messages, agentMsg(`Zona confermata: ${zona}`)];
-
-        if (nextIndex < steps.length) {
-          return {
-            ...s,
-            answers: newAnswers,
-            pendingZoneExtract: null,
-            phase: "QUESTIONS",
-            currentStepIndex: nextIndex,
-            messages: [...messages, agentMsg(steps[nextIndex]!.question)],
-          };
-        }
-
-        return {
-          ...s,
-          answers: newAnswers,
-          pendingZoneExtract: null,
-          phase: "CONTACT_INFO",
-          messages: [...messages, agentMsg(CONTACT_INFO_MSG)],
-        };
-      });
-    },
-    []
-  );
-
-  const handleZoneRetry = useCallback(() => {
-    setState((s) => {
-      if (!s.leadType) return s;
-      const steps = s.leadType === "BUYER" ? BUYER_STEPS : SELLER_STEPS;
-      const step = steps[s.currentStepIndex];
-      return {
-        ...s,
-        phase: "QUESTIONS",
-        pendingZoneExtract: null,
-        messages: [
-          ...s.messages,
-          agentMsg("Nessun problema! " + (step?.question ?? "Riprova:")),
-        ],
-      };
-    });
-  }, []);
 
   const handleContactInfo = useCallback((info: ContactInfo) => {
     setState((s) => ({
@@ -256,7 +206,7 @@ export default function ChatContainer({ initialType }: Props) {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!state.leadType || !state.consentGiven || !state.contactInfo) return;
+    if (!state.clienteType || !state.consentGiven || !state.contactInfo) return;
     setState((s) => ({ ...s, phase: "SUBMITTING" }));
 
     try {
@@ -264,7 +214,7 @@ export default function ChatContainer({ initialType }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: state.leadType,
+          clienteType: state.clienteType,
           data: state.answers,
           contactInfo: state.contactInfo,
           consentGiven: true,
@@ -288,11 +238,7 @@ export default function ChatContainer({ initialType }: Props) {
     }
   }, [state]);
 
-  const steps = state.leadType
-    ? state.leadType === "BUYER"
-      ? BUYER_STEPS
-      : SELLER_STEPS
-    : [];
+  const steps = getSteps(state.clienteType);
   const totalSteps = steps.length;
   const progress =
     totalSteps > 0 ? Math.round(((state.currentStepIndex + 1) / totalSteps) * 100) : 0;
@@ -324,17 +270,26 @@ export default function ChatContainer({ initialType }: Props) {
         ))}
 
         {/* Typing indicator */}
-        {(isTyping || aiLoading) && (
+        {isTyping && (
           <div className="mb-3 flex justify-start">
             <div className="rounded-2xl rounded-bl-sm bg-gray-100 px-4 py-3">
               <span className="flex gap-1">
-                <span className="animate-bounce text-gray-400" style={{ animationDelay: "0ms" }}>
+                <span
+                  className="animate-bounce text-gray-400"
+                  style={{ animationDelay: "0ms" }}
+                >
                   •
                 </span>
-                <span className="animate-bounce text-gray-400" style={{ animationDelay: "150ms" }}>
+                <span
+                  className="animate-bounce text-gray-400"
+                  style={{ animationDelay: "150ms" }}
+                >
                   •
                 </span>
-                <span className="animate-bounce text-gray-400" style={{ animationDelay: "300ms" }}>
+                <span
+                  className="animate-bounce text-gray-400"
+                  style={{ animationDelay: "300ms" }}
+                >
                   •
                 </span>
               </span>
@@ -373,44 +328,50 @@ export default function ChatContainer({ initialType }: Props) {
 
       {/* Input area */}
       <div className="border-t border-gray-100 bg-white">
-        {state.phase === "TYPE_SELECTION" && (
+        {/* Step 1: scelta tipo cliente */}
+        {state.phase === "TYPE_SELECTION" && !isTyping && displayed.length >= state.messages.length && (
           <div className="flex gap-3 px-4 py-4">
             <button
-              onClick={() => selectType("BUYER")}
+              onClick={() => selectType("AZIENDA")}
               className="flex-1 cursor-pointer rounded-xl border-2 border-blue-200 bg-blue-50 py-4 text-center text-sm font-medium text-blue-700 transition-colors hover:border-blue-400 hover:bg-blue-100"
             >
-              🏠 Voglio Comprare
+              🏢 Sono un&apos;azienda
             </button>
             <button
-              onClick={() => selectType("SELLER")}
-              className="flex-1 cursor-pointer rounded-xl border-2 border-green-200 bg-green-50 py-4 text-center text-sm font-medium text-green-700 transition-colors hover:border-green-400 hover:bg-green-100"
+              onClick={() => selectType("PRIVATO")}
+              className="flex-1 cursor-pointer rounded-xl border-2 border-gray-200 bg-gray-50 py-4 text-center text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100"
             >
-              💰 Voglio Vendere
+              👤 Sono un privato
             </button>
           </div>
         )}
 
-        {state.phase === "QUESTIONS" && !isTyping && displayed.length >= state.messages.length && (
-          <QuestionStep
-            key={steps[state.currentStepIndex]?.id}
-            step={steps[state.currentStepIndex]!}
-            onAnswer={handleAnswer}
-            disabled={aiLoading}
-          />
+        {/* Step 2b: messaggio avviso privati — bottone per procedere */}
+        {state.phase === "PRIVATE_WARNING" && !isTyping && displayed.length >= state.messages.length && (
+          <div className="px-4 py-4">
+            <Button onClick={startQuestionsAfterWarning} className="w-full" size="lg">
+              Ho capito, voglio procedere →
+            </Button>
+          </div>
         )}
 
-        {state.phase === "AI_CONFIRM" && state.pendingZoneExtract && (
-          <ZoneConfirm
-            result={state.pendingZoneExtract}
-            onConfirm={handleZoneConfirm}
-            onRetry={handleZoneRetry}
-          />
-        )}
+        {/* Domande */}
+        {state.phase === "QUESTIONS" &&
+          !isTyping &&
+          displayed.length >= state.messages.length && (
+            <QuestionStep
+              key={steps[state.currentStepIndex]?.id}
+              step={steps[state.currentStepIndex]!}
+              onAnswer={handleAnswer}
+            />
+          )}
 
+        {/* Dati di contatto */}
         {state.phase === "CONTACT_INFO" && (
           <ContactForm onSubmit={handleContactInfo} />
         )}
 
+        {/* Consenso GDPR */}
         {state.phase === "CONSENT" && (
           <div className="space-y-3 px-4 py-4">
             <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
@@ -423,9 +384,10 @@ export default function ChatContainer({ initialType }: Props) {
                 }
               />
               <span>
-                Acconsento al trattamento dei dati forniti per ricevere informazioni
-                dall&apos;agenzia, ai sensi del{" "}
-                <abbr title="Regolamento Generale sulla Protezione dei Dati">GDPR</abbr>.
+                Acconsento al trattamento dei dati forniti da Magnus SRL per la gestione
+                della mia richiesta, ai sensi del{" "}
+                <abbr title="Regolamento Generale sulla Protezione dei Dati">GDPR</abbr>{" "}
+                (Reg. UE 2016/679).
               </span>
             </label>
             <Button
@@ -439,6 +401,7 @@ export default function ChatContainer({ initialType }: Props) {
           </div>
         )}
 
+        {/* Invio in corso */}
         {state.phase === "SUBMITTING" && (
           <div className="px-4 py-4">
             <Button loading disabled className="w-full" size="lg">

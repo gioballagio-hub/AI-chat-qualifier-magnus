@@ -9,16 +9,20 @@ interface Props {
 }
 
 export default function ContactForm({ onSubmit }: Props) {
-  const [form, setForm] = useState({ nome: "", cognome: "", eta: "", email: "" });
-  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+  const [form, setForm] = useState({
+    nome: "",
+    cognome: "",
+    email: "",
+    telefono: "",
+  });
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof typeof form, string>>
+  >({});
 
   function validate(): boolean {
     const errs: typeof errors = {};
     if (!form.nome.trim()) errs.nome = "Campo obbligatorio";
     if (!form.cognome.trim()) errs.cognome = "Campo obbligatorio";
-    const eta = parseInt(form.eta, 10);
-    if (!form.eta || isNaN(eta) || eta < 18 || eta > 99)
-      errs.eta = "Inserisci un'età valida (18-99)";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       errs.email = "Inserisci un'email valida";
     setErrors(errs);
@@ -31,8 +35,8 @@ export default function ContactForm({ onSubmit }: Props) {
     onSubmit({
       nome: form.nome.trim(),
       cognome: form.cognome.trim(),
-      eta: parseInt(form.eta, 10),
       email: form.email.trim().toLowerCase(),
+      ...(form.telefono.trim() ? { telefono: form.telefono.trim() } : {}),
     });
   }
 
@@ -40,12 +44,21 @@ export default function ContactForm({ onSubmit }: Props) {
     id: keyof typeof form,
     label: string,
     type: string = "text",
-    placeholder?: string
+    placeholder?: string,
+    required = true
   ) {
     return (
       <div>
-        <label htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">
-          {label} <span className="text-red-500">*</span>
+        <label
+          htmlFor={id}
+          className="mb-1 block text-xs font-medium text-gray-600"
+        >
+          {label}{" "}
+          {required ? (
+            <span className="text-red-500">*</span>
+          ) : (
+            <span className="text-gray-400">(facoltativo)</span>
+          )}
         </label>
         <input
           id={id}
@@ -57,7 +70,9 @@ export default function ContactForm({ onSubmit }: Props) {
             errors[id] ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"
           }`}
         />
-        {errors[id] && <p className="mt-0.5 text-xs text-red-500">{errors[id]}</p>}
+        {errors[id] && (
+          <p className="mt-0.5 text-xs text-red-500">{errors[id]}</p>
+        )}
       </div>
     );
   }
@@ -69,8 +84,8 @@ export default function ContactForm({ onSubmit }: Props) {
         {field("cognome", "Cognome", "text", "Rossi")}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("eta", "Età", "number", "35")}
-        {field("email", "Email", "email", "mario@example.com")}
+        {field("email", "Email", "email", "mario@example.com", true)}
+        {field("telefono", "Telefono", "tel", "+39 333 1234567", false)}
       </div>
       <Button type="submit" className="w-full" size="lg">
         Continua →

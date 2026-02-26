@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { LeadSummary } from "@/types/lead";
+import type { LeadSummary, MagnusLeadData } from "@/types/lead";
 import ScoreBadge from "./ScoreBadge";
 import Badge from "@/components/ui/Badge";
 
@@ -15,6 +15,12 @@ const statusVariant = {
   ARCHIVED: "archived" as const,
 };
 const statusLabel = { NEW: "Nuovo", CONTACTED: "Contattato", ARCHIVED: "Archiviato" };
+
+const clienteTypeLabel: Record<string, string> = {
+  AZIENDA: "🏢 Azienda",
+  PRIVATO: "👤 Privato",
+  INDEFINITO: "Indefinito",
+};
 
 export default function LeadTable({ leads }: LeadTableProps) {
   if (leads.length === 0) {
@@ -30,28 +36,38 @@ export default function LeadTable({ leads }: LeadTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50 text-left">
-            <th className="px-4 py-3 font-medium text-gray-500">Tipo</th>
-            <th className="px-4 py-3 font-medium text-gray-500">Score</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Cliente</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Priorità</th>
             <th className="px-4 py-3 font-medium text-gray-500">Completezza</th>
             <th className="px-4 py-3 font-medium text-gray-500">Stato</th>
-            <th className="px-4 py-3 font-medium text-gray-500">Zona</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Categoria</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Brand</th>
             <th className="px-4 py-3 font-medium text-gray-500">Data</th>
             <th className="px-4 py-3"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
           {leads.map((lead) => {
-            const d = lead.data as Record<string, string>;
+            const d = lead.data as MagnusLeadData;
+            const nomeCompleto = [lead.nome, lead.cognome].filter(Boolean).join(" ") || "—";
+            const ragioneSociale = d.ragioneSociale;
+
             return (
               <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                {/* Tipo cliente + nome */}
                 <td className="px-4 py-3">
-                  <span className="font-medium text-gray-800">
-                    {lead.type === "BUYER" ? "🏠 Acquisto" : "💰 Vendita"}
-                  </span>
+                  <div className="font-medium text-gray-800 text-xs">
+                    {clienteTypeLabel[d.clienteType] ?? d.clienteType}
+                  </div>
+                  <div className="text-gray-500 text-xs truncate max-w-[130px]">
+                    {ragioneSociale ?? nomeCompleto}
+                  </div>
                 </td>
+                {/* Score / Priorità */}
                 <td className="px-4 py-3">
                   <ScoreBadge score={lead.score} />
                 </td>
+                {/* Completezza */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-100">
@@ -65,14 +81,21 @@ export default function LeadTable({ leads }: LeadTableProps) {
                     </span>
                   </div>
                 </td>
+                {/* Stato */}
                 <td className="px-4 py-3">
                   <Badge variant={statusVariant[lead.status]}>
                     {statusLabel[lead.status]}
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-gray-600 max-w-[140px] truncate">
-                  {d.zona ?? "—"}
+                {/* Categoria prodotto */}
+                <td className="px-4 py-3 text-gray-600 text-xs">
+                  {d.categoriaProdotto ?? "—"}
                 </td>
+                {/* Brand */}
+                <td className="px-4 py-3 text-gray-600 text-xs max-w-[100px] truncate">
+                  {d.brandProdotto ?? "—"}
+                </td>
+                {/* Data */}
                 <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                   {new Date(lead.createdAt).toLocaleDateString("it-IT", {
                     day: "2-digit",
@@ -81,6 +104,7 @@ export default function LeadTable({ leads }: LeadTableProps) {
                     minute: "2-digit",
                   })}
                 </td>
+                {/* Azione */}
                 <td className="px-4 py-3">
                   <Link
                     href={`/admin/leads/${lead.id}`}

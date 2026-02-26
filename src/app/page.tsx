@@ -6,29 +6,23 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="mx-auto max-w-2xl px-6 py-20 text-center">
         <span className="inline-block rounded-full bg-blue-100 px-4 py-1 text-xs font-medium text-blue-700 mb-6">
-          Agenzia Immobiliare
+          Magnus SRL — Ricambi Auto Americani
         </span>
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">
-          Qualifica la tua richiesta{" "}
-          <span className="text-blue-600">in 60 secondi</span>
+          Invia la tua richiesta{" "}
+          <span className="text-blue-600">in pochi minuti</span>
         </h1>
         <p className="text-lg text-gray-500 mb-10">
-          Rispondi a poche domande e ricevi subito un riepilogo. Il nostro agente ti
-          contatterà con una proposta su misura.
+          Ricambi, accessori e lubrificanti AMSOIL per veicoli americani. Compila il
+          form e il nostro team commerciale ti contatterà con la migliore offerta.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            href="/qualifica?tipo=buyer"
+            href="/qualifica"
             className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
           >
-            🏠 Voglio Comprare
-          </Link>
-          <Link
-            href="/qualifica?tipo=seller"
-            className="flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-8 py-4 text-base font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-          >
-            💰 Voglio Vendere
+            🚗 Invia la tua richiesta
           </Link>
         </div>
       </section>
@@ -40,11 +34,26 @@ export default function LandingPage() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
-            { n: "1", title: "Rispondi", desc: "Poche domande mirate, nessun dato personale richiesto." },
-            { n: "2", title: "Ricevi il riepilogo", desc: "Vedi subito un riepilogo della tua richiesta." },
-            { n: "3", title: "Vieni contattato", desc: "Un agente ti raggiungerà con la proposta giusta." },
+            {
+              n: "1",
+              title: "Descrivi cosa cerchi",
+              desc: "Ricambi, accessori, lubrificanti: dicci di cosa hai bisogno e per quale veicolo.",
+            },
+            {
+              n: "2",
+              title: "Ricevi conferma",
+              desc: "A invio completato ricevi una email di riepilogo con i dati inseriti.",
+            },
+            {
+              n: "3",
+              title: "Vieni contattato",
+              desc: "Il team Magnus ti risponderà con disponibilità e quotazione personalizzata.",
+            },
           ].map((step) => (
-            <div key={step.n} className="rounded-xl border border-gray-100 bg-white px-6 py-6 text-center shadow-sm">
+            <div
+              key={step.n}
+              className="rounded-xl border border-gray-100 bg-white px-6 py-6 text-center shadow-sm"
+            >
               <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-lg">
                 {step.n}
               </div>
@@ -53,12 +62,16 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+
+        <p className="mt-10 text-center text-sm text-gray-400">
+          Magnus SRL serve principalmente clienti B2B. L&apos;ordine minimo è di <strong>€300</strong>.
+        </p>
       </section>
 
       {/* Footer GDPR */}
       <footer className="border-t border-gray-100 bg-white py-6 text-center text-xs text-gray-400">
         I dati forniti sono trattati in conformità al GDPR (Reg. UE 2016/679) e utilizzati
-        esclusivamente per rispondere alla tua richiesta.
+        esclusivamente per la gestione della tua richiesta da parte di Magnus SRL.
       </footer>
     </main>
   );

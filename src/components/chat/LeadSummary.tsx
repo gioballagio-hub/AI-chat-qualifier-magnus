@@ -8,15 +8,39 @@ interface LeadSummaryProps {
 }
 
 function resolveValue(field: string, value: unknown): string {
-  if (!value) return "—";
+  if (!value || (typeof value === "string" && value.trim() === "")) return "—";
   const map = LABEL_MAP[field];
   if (map && typeof value === "string" && map[value]) return map[value];
   return String(value);
 }
 
+const CLIENTE_TYPE_LABEL: Record<string, string> = {
+  AZIENDA: "🏢 Azienda",
+  PRIVATO: "👤 Privato",
+  INDEFINITO: "Indefinito",
+};
+
 export default function LeadSummary({ summary, customerEmail }: LeadSummaryProps) {
-  const fields = Object.entries(summary.data).filter(([k]) => k !== "zonaRaw");
-  const tipoLabel = summary.type === "BUYER" ? "Richiesta Acquisto" : "Richiesta Vendita";
+  const data = summary.data;
+
+  // Campi da mostrare nel riepilogo, in ordine logico (escludi clienteType già mostrato nell'header)
+  const DISPLAY_FIELDS = [
+    "ragioneSociale",
+    "partitaIVA",
+    "descrizioneProdotto",
+    "categoriaProdotto",
+    "brandProdotto",
+    "codiceProdotto",
+    "vinCode",
+    "linkProdotto",
+    "noteAggiuntive",
+  ];
+
+  const fields = DISPLAY_FIELDS
+    .map((key) => [key, (data as Record<string, unknown>)[key]] as [string, unknown])
+    .filter(([, val]) => !!val && (typeof val !== "string" || val.trim() !== ""));
+
+  const tipoLabel = CLIENTE_TYPE_LABEL[data.clienteType] ?? data.clienteType;
 
   return (
     <div className="space-y-4 px-2 py-2">
@@ -24,7 +48,7 @@ export default function LeadSummary({ summary, customerEmail }: LeadSummaryProps
         <div className="mb-1 text-2xl">✅</div>
         <h2 className="text-lg font-semibold text-gray-900">Richiesta inviata!</h2>
         <p className="text-sm text-gray-500">
-          Un agente ti contatterà il prima possibile.
+          Il team commerciale Magnus SRL ti contatterà il prima possibile.
         </p>
       </div>
 
@@ -33,16 +57,20 @@ export default function LeadSummary({ summary, customerEmail }: LeadSummaryProps
           <span className="text-sm font-medium text-gray-700">{tipoLabel}</span>
         </CardHeader>
         <CardBody>
-          <dl className="space-y-2">
-            {fields.map(([key, val]) => (
-              <div key={key} className="flex justify-between text-sm">
-                <dt className="text-gray-500">{FIELD_LABELS[key] ?? key}</dt>
-                <dd className="max-w-[60%] text-right font-medium text-gray-800">
-                  {resolveValue(key, val)}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          {fields.length > 0 ? (
+            <dl className="space-y-2">
+              {fields.map(([key, val]) => (
+                <div key={key} className="flex justify-between text-sm gap-2">
+                  <dt className="text-gray-500 shrink-0">{FIELD_LABELS[key] ?? key}</dt>
+                  <dd className="max-w-[60%] text-right font-medium text-gray-800 break-words">
+                    {resolveValue(key, val)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-gray-400">Nessun dettaglio prodotto fornito.</p>
+          )}
         </CardBody>
       </Card>
 
@@ -54,6 +82,10 @@ export default function LeadSummary({ summary, customerEmail }: LeadSummaryProps
           </p>
         )}
       </div>
+
+      <p className="text-center text-xs text-gray-400 pb-2">
+        Ricorda: ordini minimi €300. Per info urgenti contatta direttamente Magnus SRL.
+      </p>
     </div>
   );
 }

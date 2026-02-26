@@ -1,6 +1,6 @@
-import type { LeadType, LeadSummary, ContactInfo } from "./lead";
+import type { ClienteType, LeadSummary, ContactInfo } from "./lead";
 
-export type QuestionType = "select" | "freetext" | "textarea" | "ai_zone";
+export type QuestionType = "select" | "freetext" | "textarea";
 
 export interface SelectOption {
   label: string;
@@ -19,8 +19,8 @@ export interface ChatStep {
 export type ChatPhase =
   | "IDLE"
   | "TYPE_SELECTION"
+  | "PRIVATE_WARNING"
   | "QUESTIONS"
-  | "AI_CONFIRM"
   | "CONTACT_INFO"
   | "CONSENT"
   | "SUBMITTING"
@@ -34,19 +34,12 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export interface ZoneExtractResult {
-  zona: string;
-  confidence: "high" | "low";
-  raw: string;
-}
-
 export interface ChatState {
   phase: ChatPhase;
-  leadType: LeadType | null;
+  clienteType: ClienteType | null;
   currentStepIndex: number;
   answers: Record<string, string>;
   messages: ChatMessage[];
-  pendingZoneExtract: ZoneExtractResult | null;
   contactInfo: ContactInfo | null;
   consentGiven: boolean;
   summary: LeadSummary | null;

@@ -7,17 +7,17 @@ import { calcCompleteness } from "@/lib/completeness";
 import { dispatchWebhook } from "@/lib/integration";
 import { sendCustomerEmail, sendAgencyEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
-import type { LeadSummary, LeadType, BuyerData, SellerData } from "@/types/lead";
+import type { LeadSummary, MagnusLeadData, ClienteType } from "@/types/lead";
 
 const ContactInfoSchema = z.object({
   nome: z.string().min(1),
   cognome: z.string().min(1),
-  eta: z.number().int().min(18).max(99),
   email: z.string().email(),
+  telefono: z.string().optional(),
 });
 
 const CreateLeadSchema = z.object({
-  type: z.enum(["BUYER", "SELLER"]),
+  clienteType: z.enum(["AZIENDA", "PRIVATO", "INDEFINITO"]),
   data: z.record(z.string(), z.unknown()),
   contactInfo: ContactInfoSchema,
   consentGiven: z.literal(true),
@@ -51,19 +51,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { type, data, contactInfo, consentGiven } = parsed.data;
-  const leadType = type as LeadType;
-  const leadData = data as BuyerData | SellerData;
+  const { clienteType, data, contactInfo, consentGiven } = parsed.data;
 
-  const score = calcScore(leadType, leadData);
-  const nextStep = calcNextStep(leadType, score);
-  const { completeness, missingFields } = calcCompleteness(leadType, leadData);
+  // Assicura che clienteType sia incluso nel data
+  const leadData: MagnusLeadData = {
+    ...(data as MagnusLeadData),
+    clienteType: clienteType as ClienteType,
+  };
+
+  const score = calcScore(leadData);
+  const nextStep = calcNextStep(score, clienteType as ClienteType);
+  const { completeness, missingFields } = calcCompleteness(leadData);
   const ipHash = hashIp(getIp(req));
 
   try {
     const lead = await prisma.lead.create({
       data: {
-        type: leadType,
+        clienteType,
         data: leadData as object,
         score,
         completeness,
@@ -73,15 +77,22 @@ export async function POST(req: NextRequest) {
         ipHash,
         nome: contactInfo.nome,
         cognome: contactInfo.cognome,
-        eta: contactInfo.eta,
         emailContatto: contactInfo.email,
+        telefono: contactInfo.telefono ?? null,
+        // Campi estratti per ricerca rapida in dashboard
+        ragioneSociale: leadData.ragioneSociale ?? null,
+        partitaIVA: leadData.partitaIVA ?? null,
+        categoriaProdotto: leadData.categoriaProdotto ?? null,
+        brandProdotto: leadData.brandProdotto ?? null,
+        codiceProdotto: leadData.codiceProdotto ?? null,
+        vinCode: leadData.vinCode ?? null,
       },
     });
 
     const summary: LeadSummary = {
       id: lead.id,
-      type: lead.type as LeadType,
-      data: lead.data as BuyerData | SellerData,
+      clienteType: lead.clienteType as ClienteType,
+      data: lead.data as MagnusLeadData,
       score: lead.score as LeadSummary["score"],
       completeness: lead.completeness,
       missingFields: lead.missingFields as string[],
@@ -92,13 +103,13 @@ export async function POST(req: NextRequest) {
       consentGiven: lead.consentGiven,
       nome: lead.nome,
       cognome: lead.cognome,
-      eta: lead.eta,
       emailContatto: lead.emailContatto,
+      telefono: lead.telefono ?? null,
       createdAt: lead.createdAt.toISOString(),
       updatedAt: lead.updatedAt.toISOString(),
     };
 
-    // Esegui email + webhook dopo la risposta (after garantisce completamento su Vercel)
+    // Esegui email + webhook dopo la risposta
     after(async () => {
       // Email invio
       try {
@@ -137,7 +148,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    logger.info("Lead creato", { leadId: lead.id, type: leadType, score });
+    logger.info("Lead Magnus creato", { leadId: lead.id, clienteType, score });
     return NextResponse.json(summary, { status: 201 });
   } catch (err) {
     logger.error("Errore creazione lead", {
