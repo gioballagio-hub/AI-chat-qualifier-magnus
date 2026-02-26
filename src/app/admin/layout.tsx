@@ -66,9 +66,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="flex items-center gap-3">
             {session && (
-              <span className="text-xs text-gray-500">
+              <Link
+                href="/admin/profilo"
+                className="text-xs text-gray-500 hover:text-gray-800 transition-colors"
+              >
                 {session.ruolo === "ADMIN" ? "🛡️" : "👤"} {session.nome}
-              </span>
+              </Link>
             )}
             <button
               onClick={logout}
