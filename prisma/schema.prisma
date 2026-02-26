@@ -57,6 +57,7 @@ model Settings {
   integrationMode String  @default("WEBHOOK")
   webhookUrl      String?
   webhookSecret   String?
+  notificheEmailCommerciale Boolean @default(true) // invia email al commerciale quando viene assegnato
 }
 
 model User {

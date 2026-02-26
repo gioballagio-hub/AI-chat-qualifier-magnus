@@ -7,6 +7,7 @@ const SettingsSchema = z.object({
   integrationMode: z.enum(["WEBHOOK", "DISABLED"]),
   webhookUrl: z.string().url().optional().or(z.literal("")),
   webhookSecret: z.string().max(255).optional(),
+  notificheEmailCommerciale: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -21,6 +22,7 @@ export async function GET() {
     integrationMode: settings.integrationMode,
     webhookUrl: settings.webhookUrl ?? "",
     webhookSecretSet: !!settings.webhookSecret,
+    notificheEmailCommerciale: settings.notificheEmailCommerciale ?? true,
   });
 }
 
@@ -40,15 +42,17 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const { integrationMode, webhookUrl, webhookSecret } = parsed.data;
+  const { integrationMode, webhookUrl, webhookSecret, notificheEmailCommerciale } = parsed.data;
 
   const updateData: Record<string, unknown> = {
     integrationMode,
     webhookUrl: webhookUrl || null,
   };
-  // aggiorna il secret solo se fornito esplicitamente
   if (webhookSecret !== undefined) {
     updateData["webhookSecret"] = webhookSecret || null;
+  }
+  if (notificheEmailCommerciale !== undefined) {
+    updateData["notificheEmailCommerciale"] = notificheEmailCommerciale;
   }
 
   await prisma.settings.upsert({

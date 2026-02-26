@@ -14,6 +14,7 @@ export default async function ImpostazioniPage() {
     integrationMode: (settings.integrationMode as "WEBHOOK" | "DISABLED") ?? "DISABLED",
     webhookUrl: settings.webhookUrl ?? "",
     webhookSecretSet: !!settings.webhookSecret,
+    notificheEmailCommerciale: settings.notificheEmailCommerciale ?? true,
   };
 
   return (

@@ -7,6 +7,7 @@ interface SettingsData {
   integrationMode: "WEBHOOK" | "DISABLED";
   webhookUrl: string;
   webhookSecretSet: boolean;
+  notificheEmailCommerciale: boolean;
 }
 
 interface Props {
@@ -17,6 +18,7 @@ export default function SettingsForm({ initial }: Props) {
   const [mode, setMode] = useState<"WEBHOOK" | "DISABLED">(initial.integrationMode);
   const [webhookUrl, setWebhookUrl] = useState(initial.webhookUrl);
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [notificheEmail, setNotificheEmail] = useState(initial.notificheEmailCommerciale);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -25,7 +27,11 @@ export default function SettingsForm({ initial }: Props) {
     setSaving(true);
     setMsg(null);
     try {
-      const body: Record<string, unknown> = { integrationMode: mode, webhookUrl };
+      const body: Record<string, unknown> = {
+        integrationMode: mode,
+        webhookUrl,
+        notificheEmailCommerciale: notificheEmail,
+      };
       if (webhookSecret) body["webhookSecret"] = webhookSecret;
 
       const res = await fetch("/api/admin/settings", {
@@ -119,6 +125,29 @@ export default function SettingsForm({ initial }: Props) {
           </div>
         </>
       )}
+
+      {/* Toggle notifiche email commerciale */}
+      <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-gray-700">📧 Notifiche email ai commerciali</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Invia un'email al commerciale quando gli viene assegnato un lead
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setNotificheEmail((v) => !v)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+            notificheEmail ? "bg-blue-600" : "bg-gray-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              notificheEmail ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
+      </div>
 
       {msg && (
         <div

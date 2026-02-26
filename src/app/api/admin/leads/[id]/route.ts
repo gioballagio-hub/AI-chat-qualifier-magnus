@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { dispatchWebhook } from "@/lib/integration";
 import { logger } from "@/lib/logger";
 import { getSessionFromCookies } from "@/lib/auth";
+import { sendCommercialEmail } from "@/lib/email";
 import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 
 const UpdateSchema = z.object({
@@ -142,12 +143,42 @@ export async function PATCH(
   const updateData: Record<string, unknown> = {};
   if (parsed.data.status) updateData["status"] = parsed.data.status;
   if (parsed.data.statoLead) updateData["statoLead"] = parsed.data.statoLead;
-  if (parsed.data.commercialeAssegnato !== undefined) {
-    updateData["commercialeAssegnato"] = parsed.data.commercialeAssegnato;
+
+  const nuovoCommerciale = parsed.data.commercialeAssegnato;
+  const vecchioCommerciale = lead.commercialeAssegnato;
+  if (nuovoCommerciale !== undefined) {
+    updateData["commercialeAssegnato"] = nuovoCommerciale;
   }
 
   const updated = await prisma.lead.update({ where: { id }, data: updateData });
-  return NextResponse.json(toSummary(updated));
+  const summary = toSummary(updated);
+
+  // Invia email al commerciale se è stato appena assegnato (nome diverso dal precedente)
+  if (nuovoCommerciale && nuovoCommerciale !== vecchioCommerciale) {
+    try {
+      const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+      const notificheAbilitate = settings?.notificheEmailCommerciale ?? true;
+      if (notificheAbilitate) {
+        const utente = await prisma.user.findFirst({
+          where: { nome: nuovoCommerciale, attivo: true },
+          select: { email: true, nome: true },
+        });
+        if (utente?.email) {
+          await sendCommercialEmail(utente.email, utente.nome, summary);
+          logger.info("Email notifica inviata al commerciale", { commerciale: nuovoCommerciale, leadId: id });
+        }
+      } else {
+        logger.info("Notifiche email commerciale disabilitate, skip invio", { leadId: id });
+      }
+    } catch (err) {
+      logger.warn("Invio email commerciale fallito", {
+        error: err instanceof Error ? err.message : String(err),
+        leadId: id,
+      });
+    }
+  }
+
+  return NextResponse.json(summary);
 }
 
 // DELETE — soft delete, solo ADMIN

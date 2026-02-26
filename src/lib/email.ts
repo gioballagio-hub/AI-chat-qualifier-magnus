@@ -94,6 +94,60 @@ Hai ricevuto questa email perché hai compilato il modulo sul sito Magnus SRL.
   });
 }
 
+export async function sendCommercialEmail(
+  commercialeEmail: string,
+  commercialeNome: string,
+  summary: LeadSummary
+): Promise<void> {
+  const transport = createTransport();
+  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER;
+  const data = summary.data as MagnusLeadData;
+  const emoji = scoreEmoji[summary.score] ?? "";
+  const tipoCliente = clienteTypeLabel[data.clienteType] ?? data.clienteType;
+  const dataTable = buildDataTable(data);
+
+  const nomeContatto = [summary.nome, summary.cognome].filter(Boolean).join(" ") || "—";
+  const ragioneSociale = data.ragioneSociale ? `\n  • Ragione Sociale: ${data.ragioneSociale}` : "";
+  const partitaIVA = data.partitaIVA ? `\n  • Partita IVA: ${data.partitaIVA}` : "";
+
+  const text = `
+Ciao ${commercialeNome},
+
+ti è stato assegnato un nuovo lead da gestire.
+
+=== DATI DI CONTATTO ===
+  • Nome: ${nomeContatto}
+  • Email: ${summary.emailContatto ?? "—"}${summary.telefono ? `\n  • Telefono: ${summary.telefono}` : ""}
+  • Tipo cliente: ${tipoCliente}${ragioneSociale}${partitaIVA}
+
+=== PRIORITÀ ===
+  • Score: ${emoji} ${summary.score}
+  • Completezza: ${Math.round(summary.completeness)}%
+
+=== PRODOTTO RICHIESTO ===
+${dataTable}
+
+=== PROSSIMO PASSO SUGGERITO ===
+${summary.nextStep}
+
+Accedi al pannello per gestire questo lead:
+${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/admin/leads/${summary.id}
+
+Lead ID: ${summary.id}
+Data richiesta: ${new Date(summary.createdAt).toLocaleString("it-IT")}
+
+---
+Magnus SRL — Pannello Commerciale
+`.trim();
+
+  await transport.sendMail({
+    from,
+    to: commercialeEmail,
+    subject: `${emoji} Lead assegnato a te — ${tipoCliente}: ${nomeContatto}`,
+    text,
+  });
+}
+
 export async function sendAgencyEmail(
   contactInfo: ContactInfo,
   summary: LeadSummary
