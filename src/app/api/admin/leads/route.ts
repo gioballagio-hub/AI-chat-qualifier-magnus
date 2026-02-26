@@ -10,11 +10,27 @@ export async function GET(req: NextRequest) {
   const score = searchParams.get("score");
   const status = searchParams.get("status");
   const clienteType = searchParams.get("clienteType");
+  const q = searchParams.get("q")?.trim() ?? "";
 
   const where: Record<string, unknown> = { deletedAt: null };
   if (score) where["score"] = score;
   if (status) where["status"] = status;
   if (clienteType) where["clienteType"] = clienteType;
+  if (q) {
+    where["OR"] = [
+      { nome: { contains: q, mode: "insensitive" } },
+      { cognome: { contains: q, mode: "insensitive" } },
+      { emailContatto: { contains: q, mode: "insensitive" } },
+      { telefono: { contains: q, mode: "insensitive" } },
+      { ragioneSociale: { contains: q, mode: "insensitive" } },
+      { partitaIVA: { contains: q, mode: "insensitive" } },
+      { brandProdotto: { contains: q, mode: "insensitive" } },
+      { codiceProdotto: { contains: q, mode: "insensitive" } },
+      { vinCode: { contains: q, mode: "insensitive" } },
+      { categoriaProdotto: { contains: q, mode: "insensitive" } },
+      { commercialeAssegnato: { contains: q, mode: "insensitive" } },
+    ];
+  }
 
   const [leads, total] = await Promise.all([
     prisma.lead.findMany({

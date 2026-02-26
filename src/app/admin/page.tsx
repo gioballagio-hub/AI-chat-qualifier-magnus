@@ -12,6 +12,7 @@ interface Props {
     status?: string;
     clienteType?: string;
     page?: string;
+    q?: string;
   }>;
 }
 
@@ -19,11 +20,29 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const limit = 20;
+  const q = params.q?.trim() ?? "";
 
   const where: Record<string, unknown> = { deletedAt: null };
   if (params.score) where["score"] = params.score;
   if (params.status) where["status"] = params.status;
   if (params.clienteType) where["clienteType"] = params.clienteType;
+
+  // Ricerca full-text: cerca su nome, cognome, email, telefono e campi Magnus estratti
+  if (q) {
+    where["OR"] = [
+      { nome: { contains: q, mode: "insensitive" } },
+      { cognome: { contains: q, mode: "insensitive" } },
+      { emailContatto: { contains: q, mode: "insensitive" } },
+      { telefono: { contains: q, mode: "insensitive" } },
+      { ragioneSociale: { contains: q, mode: "insensitive" } },
+      { partitaIVA: { contains: q, mode: "insensitive" } },
+      { brandProdotto: { contains: q, mode: "insensitive" } },
+      { codiceProdotto: { contains: q, mode: "insensitive" } },
+      { vinCode: { contains: q, mode: "insensitive" } },
+      { categoriaProdotto: { contains: q, mode: "insensitive" } },
+      { commercialeAssegnato: { contains: q, mode: "insensitive" } },
+    ];
+  }
 
   const [leads, total, utenti] = await Promise.all([
     prisma.lead.findMany({
@@ -64,12 +83,29 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
 
   const totalPages = Math.ceil(total / limit);
 
+  // Costruisce querystring mantenendo i filtri attivi
+  function buildQs(extra: Record<string, string | undefined>) {
+    const merged: Record<string, string> = {};
+    if (params.score) merged["score"] = params.score;
+    if (params.status) merged["status"] = params.status;
+    if (params.clienteType) merged["clienteType"] = params.clienteType;
+    if (q) merged["q"] = q;
+    Object.entries(extra).forEach(([k, v]) => {
+      if (v === undefined || v === "") delete merged[k];
+      else merged[k] = v;
+    });
+    const qs = new URLSearchParams(merged).toString();
+    return `/admin${qs ? "?" + qs : ""}`;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Richieste</h1>
-          <p className="text-sm text-gray-500">{total} richieste totali</p>
+          <p className="text-sm text-gray-500">
+            {total} {q ? `risultati per "${q}"` : "richieste totali"}
+          </p>
         </div>
         <a
           href="/api/admin/leads/export"
@@ -79,28 +115,57 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
         </a>
       </div>
 
+      {/* Barra di ricerca */}
+      <form method="GET" action="/admin" className="flex gap-2">
+        {/* Mantieni i filtri attivi */}
+        {params.score && <input type="hidden" name="score" value={params.score} />}
+        {params.status && <input type="hidden" name="status" value={params.status} />}
+        {params.clienteType && <input type="hidden" name="clienteType" value={params.clienteType} />}
+        <div className="relative flex-1 max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder="Cerca per nome, email, azienda, VIN, brand…"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 py-2 text-sm focus:border-blue-400 focus:outline-none shadow-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+        >
+          Cerca
+        </button>
+        {q && (
+          <a
+            href={buildQs({ q: "" })}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            ✕ Pulisci
+          </a>
+        )}
+      </form>
+
       {/* Filtri */}
       <div className="flex flex-wrap gap-2">
         {[
-          { label: "Tutti", params: {} },
-          { label: "🔥 Alta priorità", params: { score: "ALTA" } },
-          { label: "☀️ Media priorità", params: { score: "MEDIA" } },
-          { label: "❄️ Bassa priorità", params: { score: "BASSA" } },
-          { label: "Nuovi", params: { status: "NEW" } },
-          { label: "🏢 Aziende", params: { clienteType: "AZIENDA" } },
-          { label: "👤 Privati", params: { clienteType: "PRIVATO" } },
-        ].map((filter) => {
-          const sp = new URLSearchParams(filter.params as Record<string, string>).toString();
-          return (
-            <Link
-              key={filter.label}
-              href={`/admin${sp ? "?" + sp : ""}`}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              {filter.label}
-            </Link>
-          );
-        })}
+          { label: "Tutti", extra: { score: "", status: "", clienteType: "" } },
+          { label: "🔥 Alta priorità", extra: { score: "ALTA" } },
+          { label: "☀️ Media priorità", extra: { score: "MEDIA" } },
+          { label: "❄️ Bassa priorità", extra: { score: "BASSA" } },
+          { label: "Nuovi", extra: { status: "NEW" } },
+          { label: "🏢 Aziende", extra: { clienteType: "AZIENDA" } },
+          { label: "👤 Privati", extra: { clienteType: "PRIVATO" } },
+        ].map((filter) => (
+          <Link
+            key={filter.label}
+            href={buildQs({ ...filter.extra, page: "1" })}
+            className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            {filter.label}
+          </Link>
+        ))}
       </div>
 
       <LeadTable leads={summaries} commerciali={commerciali} />
@@ -111,7 +176,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <Link
               key={p}
-              href={`/admin?page=${p}${params.score ? "&score=" + params.score : ""}${params.status ? "&status=" + params.status : ""}`}
+              href={buildQs({ page: String(p) })}
               className={`rounded-lg px-3 py-1.5 text-sm ${
                 p === page
                   ? "bg-blue-600 text-white"
