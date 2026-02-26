@@ -2,15 +2,31 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const NAV = [
-  { href: "/admin", label: "Lead", exact: true },
+  { href: "/admin", label: "Richieste", exact: true },
   { href: "/admin/impostazioni", label: "Impostazioni", exact: false },
+  { href: "/admin/utenti", label: "Utenti", exact: false, adminOnly: true },
 ];
+
+interface SessionInfo {
+  nome: string;
+  ruolo: string;
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [session, setSession] = useState<SessionInfo | null>(null);
+
+  useEffect(() => {
+    // Legge le info utente dal cookie di sessione via endpoint leggero
+    fetch("/api/auth/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setSession(data); })
+      .catch(() => {});
+  }, []);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -19,14 +35,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (pathname === "/admin/login") return <>{children}</>;
 
+  const isAdmin = session?.ruolo === "ADMIN";
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-100 bg-white px-6 py-3">
         <div className="mx-auto max-w-6xl flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="font-semibold text-gray-900 text-sm">AI Lead Qualifier</span>
+            <span className="font-semibold text-gray-900 text-sm">🚗 Magnus SRL</span>
             <nav className="flex gap-1">
-              {NAV.map((item) => {
+              {NAV.filter((item) => !item.adminOnly || isAdmin).map((item) => {
                 const active = item.exact
                   ? pathname === item.href
                   : pathname.startsWith(item.href);
@@ -46,12 +64,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               })}
             </nav>
           </div>
-          <button
-            onClick={logout}
-            className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
-          >
-            Esci
-          </button>
+          <div className="flex items-center gap-3">
+            {session && (
+              <span className="text-xs text-gray-500">
+                {session.ruolo === "ADMIN" ? "🛡️" : "👤"} {session.nome}
+              </span>
+            )}
+            <button
+              onClick={logout}
+              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              Esci
+            </button>
+          </div>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
