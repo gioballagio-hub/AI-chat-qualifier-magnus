@@ -42,6 +42,16 @@ model Lead {
   updatedAt         DateTime @updatedAt
 }
 
+model Nota {
+  id        String   @id @default(cuid())
+  leadId    String
+  autore    String
+  testo     String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
 model Settings {
   id              Int     @id @default(1)
   integrationMode String  @default("WEBHOOK")

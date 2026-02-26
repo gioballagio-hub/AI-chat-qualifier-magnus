@@ -9,6 +9,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card, { CardBody, CardHeader } from "@/components/ui/Card";
 import { useIsAdmin } from "@/lib/session-context";
+import NoteSection from "@/components/admin/NoteSection";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -326,6 +327,9 @@ export default function LeadDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      {/* Note interne */}
+      <NoteSection leadId={lead.id} />
 
       <p className="text-xs text-gray-400">
         ID: {lead.id} · Creato: {new Date(lead.createdAt).toLocaleString("it-IT")}
