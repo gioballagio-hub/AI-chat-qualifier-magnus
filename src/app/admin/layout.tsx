@@ -8,6 +8,7 @@ import type { SessionInfo } from "@/lib/session-context";
 
 const NAV = [
   { href: "/admin", label: "Richieste", exact: true },
+  { href: "/admin/dashboard", label: "📊 Dashboard", exact: false, adminOnly: true },
   { href: "/admin/impostazioni", label: "Impostazioni", exact: false },
   { href: "/admin/utenti", label: "Utenti", exact: false, adminOnly: true },
   { href: "/admin/cestino", label: "🗑 Cestino", exact: false, adminOnly: true },
