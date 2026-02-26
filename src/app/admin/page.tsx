@@ -107,12 +107,30 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
             {total} {q ? `risultati per "${q}"` : "richieste totali"}
           </p>
         </div>
-        <a
-          href="/api/admin/leads/export"
-          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-        >
-          Esporta Excel
-        </a>
+        <div className="flex gap-2">
+          <a
+            href={`/api/admin/leads/export?${new URLSearchParams({
+              ...(params.score ? { score: params.score } : {}),
+              ...(params.status ? { status: params.status } : {}),
+              ...(params.clienteType ? { clienteType: params.clienteType } : {}),
+              ...(q ? { q } : {}),
+            }).toString()}`}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            📊 Excel
+          </a>
+          <a
+            href={`/api/admin/leads/export?format=csv&${new URLSearchParams({
+              ...(params.score ? { score: params.score } : {}),
+              ...(params.status ? { status: params.status } : {}),
+              ...(params.clienteType ? { clienteType: params.clienteType } : {}),
+              ...(q ? { q } : {}),
+            }).toString()}`}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            📄 CSV
+          </a>
+        </div>
       </div>
 
       {/* Barra di ricerca */}
