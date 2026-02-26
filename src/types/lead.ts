@@ -1,6 +1,12 @@
 export type ClienteType = "AZIENDA" | "PRIVATO" | "INDEFINITO";
 export type LeadScore = "ALTA" | "MEDIA" | "BASSA";
 export type LeadStatus = "NEW" | "CONTACTED" | "ARCHIVED";
+export type StatoLead =
+  | "NUOVO"
+  | "IN_LAVORAZIONE"
+  | "OFFERTA_INVIATA"
+  | "CHIUSO_VINTO"
+  | "CHIUSO_PERSO";
 export type CategoriaProdotto =
   | "Accessori"
   | "Ricambi"
@@ -46,6 +52,7 @@ export interface LeadSummary {
   emailContatto: string | null;
   telefono: string | null;
   commercialeAssegnato: string | null;
+  statoLead: StatoLead;
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;

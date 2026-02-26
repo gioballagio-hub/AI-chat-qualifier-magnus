@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       emailContatto: lead.emailContatto,
       telefono: lead.telefono ?? null,
       commercialeAssegnato: lead.commercialeAssegnato ?? null,
+      statoLead: (lead.statoLead ?? "NUOVO") as LeadSummary["statoLead"],
       createdAt: lead.createdAt.toISOString(),
       updatedAt: lead.updatedAt.toISOString(),
     };

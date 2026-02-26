@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import type { LeadSummary, LeadStatus } from "@/types/lead";
+import type { LeadSummary, LeadStatus, StatoLead } from "@/types/lead";
 import { LABEL_MAP, FIELD_LABELS } from "@/constants/questions";
 import ScoreBadge from "@/components/admin/ScoreBadge";
 import Badge from "@/components/ui/Badge";
@@ -15,6 +15,14 @@ const statusLabel: Record<LeadStatus, string> = {
   CONTACTED: "Contattato",
   ARCHIVED: "Archiviato",
 };
+
+const PIPELINE_STEPS: { value: StatoLead; label: string; color: string }[] = [
+  { value: "NUOVO", label: "🆕 Nuovo", color: "gray" },
+  { value: "IN_LAVORAZIONE", label: "⚙️ In lavorazione", color: "blue" },
+  { value: "OFFERTA_INVIATA", label: "📤 Offerta inviata", color: "amber" },
+  { value: "CHIUSO_VINTO", label: "✅ Chiuso vinto", color: "green" },
+  { value: "CHIUSO_PERSO", label: "❌ Chiuso perso", color: "red" },
+];
 
 function resolveValue(field: string, value: unknown): string {
   if (!value) return "—";
@@ -30,6 +38,7 @@ export default function LeadDetailPage() {
   const [lead, setLead] = useState<LeadSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [updatingPipeline, setUpdatingPipeline] = useState(false);
   const [resending, setResending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -78,6 +87,25 @@ export default function LeadDetailPage() {
       setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
     } finally {
       setResending(false);
+    }
+  };
+
+  const changePipeline = async (statoLead: StatoLead) => {
+    setUpdatingPipeline(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statoLead }),
+      });
+      if (!res.ok) throw new Error("Errore aggiornamento pipeline");
+      const updated: LeadSummary = await res.json();
+      setLead(updated);
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
+    } finally {
+      setUpdatingPipeline(false);
     }
   };
 
@@ -236,14 +264,35 @@ export default function LeadDetailPage() {
         </CardBody>
       </Card>
 
-      {/* Stato + Webhook */}
+      {/* Pipeline */}
       <Card>
         <CardHeader>
-          <span className="text-sm font-medium text-gray-700">Gestione</span>
+          <span className="text-sm font-medium text-gray-700">Pipeline</span>
         </CardHeader>
         <CardBody className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {PIPELINE_STEPS.map((step) => {
+              const isActive = lead.statoLead === step.value;
+              return (
+                <button
+                  key={step.value}
+                  onClick={() => changePipeline(step.value)}
+                  disabled={updatingPipeline || isActive}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-default ${
+                    isActive
+                      ? "border-blue-500 bg-blue-600 text-white shadow-sm"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {step.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Stato tecnico (NEW/CONTACTED/ARCHIVED) */}
           <div>
-            <p className="text-xs text-gray-400 mb-2">Stato attuale</p>
+            <p className="text-xs text-gray-400 mb-2">Stato tecnico</p>
             <div className="flex gap-2 flex-wrap">
               {(["NEW", "CONTACTED", "ARCHIVED"] as LeadStatus[]).map((s) => (
                 <button

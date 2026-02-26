@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LeadTable from "@/components/admin/LeadTable";
-import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +57,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
     emailContatto: l.emailContatto,
     telefono: l.telefono ?? null,
     commercialeAssegnato: l.commercialeAssegnato ?? null,
+    statoLead: (l.statoLead ?? "NUOVO") as StatoLead,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
   }));

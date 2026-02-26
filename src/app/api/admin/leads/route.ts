@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     emailContatto: l.emailContatto,
     telefono: l.telefono ?? null,
     commercialeAssegnato: l.commercialeAssegnato ?? null,
+    statoLead: (l.statoLead ?? "NUOVO") as StatoLead,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
   }));

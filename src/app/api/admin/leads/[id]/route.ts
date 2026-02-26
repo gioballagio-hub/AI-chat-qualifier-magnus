@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { dispatchWebhook } from "@/lib/integration";
 import { logger } from "@/lib/logger";
 import { getSessionFromCookies } from "@/lib/auth";
-import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 
 const UpdateSchema = z.object({
   status: z.enum(["NEW", "CONTACTED", "ARCHIVED"]).optional(),
+  statoLead: z.enum(["NUOVO", "IN_LAVORAZIONE", "OFFERTA_INVIATA", "CHIUSO_VINTO", "CHIUSO_PERSO"]).optional(),
   commercialeAssegnato: z.string().nullable().optional(),
   resend: z.boolean().optional(),
 });
@@ -21,6 +22,7 @@ function toSummary(l: {
   missingFields: unknown;
   nextStep: string;
   status: string;
+  statoLead: string;
   sentToIntegration: boolean;
   emailInviata: boolean;
   consentGiven: boolean;
@@ -41,6 +43,7 @@ function toSummary(l: {
     missingFields: l.missingFields as string[],
     nextStep: l.nextStep,
     status: l.status as LeadSummary["status"],
+    statoLead: l.statoLead as StatoLead,
     sentToIntegration: l.sentToIntegration,
     emailInviata: l.emailInviata,
     consentGiven: l.consentGiven,
@@ -91,6 +94,7 @@ export async function PUT(
 
   const updateData: Record<string, unknown> = {};
   if (parsed.data.status) updateData["status"] = parsed.data.status;
+  if (parsed.data.statoLead) updateData["statoLead"] = parsed.data.statoLead;
   if (parsed.data.commercialeAssegnato !== undefined) {
     updateData["commercialeAssegnato"] = parsed.data.commercialeAssegnato;
   }
@@ -137,6 +141,7 @@ export async function PATCH(
 
   const updateData: Record<string, unknown> = {};
   if (parsed.data.status) updateData["status"] = parsed.data.status;
+  if (parsed.data.statoLead) updateData["statoLead"] = parsed.data.statoLead;
   if (parsed.data.commercialeAssegnato !== undefined) {
     updateData["commercialeAssegnato"] = parsed.data.commercialeAssegnato;
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionFromCookies } from "@/lib/auth";
-import type { LeadSummary, ClienteType, MagnusLeadData } from "@/types/lead";
+import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 import type { Lead } from "@prisma/client";
 
 // GET — lista lead nel cestino (solo ADMIN)
@@ -33,6 +33,7 @@ export async function GET() {
     emailContatto: l.emailContatto,
     telefono: l.telefono ?? null,
     commercialeAssegnato: l.commercialeAssegnato ?? null,
+    statoLead: (l.statoLead ?? "NUOVO") as StatoLead,
     deletedAt: l.deletedAt ? l.deletedAt.toISOString() : "",
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),

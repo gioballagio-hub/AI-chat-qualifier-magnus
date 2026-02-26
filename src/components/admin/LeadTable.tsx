@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { LeadSummary, MagnusLeadData } from "@/types/lead";
+import type { LeadSummary, MagnusLeadData, StatoLead } from "@/types/lead";
 import ScoreBadge from "./ScoreBadge";
 import Badge from "@/components/ui/Badge";
 
 interface LeadTableProps {
   leads: LeadSummary[];
-  commerciali?: string[]; // lista nomi commerciali disponibili
+  commerciali?: string[];
 }
 
 const statusVariant = {
@@ -23,6 +23,58 @@ const clienteTypeLabel: Record<string, string> = {
   PRIVATO: "👤 Privato",
   INDEFINITO: "Indefinito",
 };
+
+// Pipeline statoLead
+const statoLeadLabel: Record<StatoLead, string> = {
+  NUOVO: "🆕 Nuovo",
+  IN_LAVORAZIONE: "⚙️ In lavorazione",
+  OFFERTA_INVIATA: "📤 Offerta inviata",
+  CHIUSO_VINTO: "✅ Chiuso vinto",
+  CHIUSO_PERSO: "❌ Chiuso perso",
+};
+const statoLeadColor: Record<StatoLead, string> = {
+  NUOVO: "bg-gray-100 text-gray-600",
+  IN_LAVORAZIONE: "bg-blue-100 text-blue-700",
+  OFFERTA_INVIATA: "bg-amber-100 text-amber-700",
+  CHIUSO_VINTO: "bg-green-100 text-green-700",
+  CHIUSO_PERSO: "bg-red-100 text-red-600",
+};
+
+function StatoDropdown({ leadId, currentValue }: { leadId: string; currentValue: StatoLead }) {
+  const [value, setValue] = useState<StatoLead>(currentValue);
+  const [saving, setSaving] = useState(false);
+
+  async function handleChange(newValue: StatoLead) {
+    setValue(newValue);
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statoLead: newValue }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => handleChange(e.target.value as StatoLead)}
+        disabled={saving}
+        className={`w-full rounded-lg border px-2 py-1 text-xs outline-none transition-colors cursor-pointer
+          ${saving ? "opacity-50 cursor-wait" : ""}
+          ${statoLeadColor[value]} border-transparent font-medium`}
+      >
+        {(Object.keys(statoLeadLabel) as StatoLead[]).map((s) => (
+          <option key={s} value={s}>{statoLeadLabel[s]}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 function AssegnaDropdown({
   leadId,
@@ -91,10 +143,9 @@ export default function LeadTable({ leads, commerciali = [] }: LeadTableProps) {
           <tr className="border-b border-gray-100 bg-gray-50 text-left">
             <th className="px-4 py-3 font-medium text-gray-500">Cliente</th>
             <th className="px-4 py-3 font-medium text-gray-500">Priorità</th>
+            <th className="px-4 py-3 font-medium text-gray-500">Pipeline</th>
             <th className="px-4 py-3 font-medium text-gray-500">Completezza</th>
-            <th className="px-4 py-3 font-medium text-gray-500">Stato</th>
             <th className="px-4 py-3 font-medium text-gray-500">Categoria</th>
-            <th className="px-4 py-3 font-medium text-gray-500">Brand</th>
             <th className="px-4 py-3 font-medium text-gray-500">Commerciale</th>
             <th className="px-4 py-3 font-medium text-gray-500">Data</th>
             <th className="px-4 py-3"></th>
@@ -121,6 +172,10 @@ export default function LeadTable({ leads, commerciali = [] }: LeadTableProps) {
                 <td className="px-4 py-3">
                   <ScoreBadge score={lead.score} />
                 </td>
+                {/* Pipeline statoLead */}
+                <td className="px-4 py-3 min-w-[160px]">
+                  <StatoDropdown leadId={lead.id} currentValue={lead.statoLead ?? "NUOVO"} />
+                </td>
                 {/* Completezza */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -135,19 +190,9 @@ export default function LeadTable({ leads, commerciali = [] }: LeadTableProps) {
                     </span>
                   </div>
                 </td>
-                {/* Stato */}
-                <td className="px-4 py-3">
-                  <Badge variant={statusVariant[lead.status]}>
-                    {statusLabel[lead.status]}
-                  </Badge>
-                </td>
                 {/* Categoria */}
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {d.categoriaProdotto ?? "—"}
-                </td>
-                {/* Brand */}
-                <td className="px-4 py-3 text-gray-600 text-xs max-w-[100px] truncate">
-                  {d.brandProdotto ?? "—"}
                 </td>
                 {/* Commerciale assegnato */}
                 <td className="px-4 py-3 min-w-[140px]">
