@@ -204,9 +204,22 @@ export default function ChatContainer() {
       setState((s) => {
         const steps = getSteps(s.clienteType);
         const step = steps[s.currentStepIndex];
-        const id = fieldId ?? step?.id ?? "";
+        // Se lo step è "libretto", salva come "librettoUrl" nei dati del lead
+        const rawId = fieldId ?? step?.id ?? "";
+        const id = rawId === "libretto" ? "librettoUrl" : rawId;
         const newAnswers = { ...s.answers, [id]: value };
         const messages = msgs ?? s.messages;
+
+        // Salta il libretto se la categoria non richiede il documento
+        const shouldSkipLibretto = (idx: number, answers: Record<string, string>): number => {
+          if (steps[idx]?.id === "libretto") {
+            const cat = answers.categoriaProdotto ?? "";
+            if (!cat.includes("Ricambi") && !cat.includes("Accessori")) {
+              return idx + 1;
+            }
+          }
+          return idx;
+        };
 
         // --- Logica di skip+pre-fill dopo descrizioneProdotto ---
         if (id === "descrizioneProdotto" && value.trim().length > 0) {
@@ -221,9 +234,11 @@ export default function ChatContainer() {
 
           const nextIndex = s.currentStepIndex + 1;
 
-          // Salta gli step già coperti dall'estrazione
-          const { index: finalIndex, answers: finalAnswers, messages: finalMessages } =
+          // Salta gli step già coperti dall'estrazione, poi applica skip libretto
+          const { index: extractedIndex, answers: finalAnswers, messages: finalMessages } =
             skipExtractedSteps(nextIndex, preFilledAnswers, messages, s.clienteType);
+
+          const finalIndex = shouldSkipLibretto(extractedIndex, finalAnswers);
 
           if (finalIndex < steps.length) {
             return {
@@ -243,7 +258,8 @@ export default function ChatContainer() {
         }
 
         // --- Avanzamento normale ---
-        const nextIndex = s.currentStepIndex + 1;
+        const rawNext = s.currentStepIndex + 1;
+        const nextIndex = shouldSkipLibretto(rawNext, newAnswers);
 
         if (nextIndex < steps.length) {
           return {
@@ -271,8 +287,12 @@ export default function ChatContainer() {
       const step = steps[state.currentStepIndex];
       if (!step) return;
 
-      const displayValue =
-        (step.options?.find((o) => o.value === value)?.label ?? value) || "(saltato)";
+      let displayValue: string;
+      if (step.type === "file") {
+        displayValue = value ? "📄 Documento caricato" : "(saltato)";
+      } else {
+        displayValue = (step.options?.find((o) => o.value === value)?.label ?? value) || "(saltato)";
+      }
       const newMessages: ChatMessage[] = [...state.messages, userMsg(displayValue)];
 
       advanceStep(value, newMessages, step.id);

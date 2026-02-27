@@ -543,18 +543,27 @@ export default function LeadDetailPage() {
                     <textarea rows={3} value={formDati.descrizioneProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, descrizioneProdotto: e.target.value }))}
                       className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white resize-none" />
                   </div>
-                  {/* Categoria + Brand */}
+                  {/* Categoria (multi) + Brand */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">Categoria</label>
-                      <select value={formDati.categoriaProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, categoriaProdotto: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white">
-                        <option value="">— Nessuna —</option>
-                        <option value="Accessori">Accessori</option>
-                        <option value="Ricambi">Ricambi</option>
-                        <option value="Lubrificanti">Lubrificanti</option>
-                        <option value="Vernici">Vernici</option>
-                      </select>
+                      <div className="flex flex-col gap-1.5">
+                        {(["Accessori", "Ricambi", "Lubrificanti", "Vernici"] as const).map((cat) => {
+                          const selected = (formDati.categoriaProdotto ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                          const checked = selected.includes(cat);
+                          return (
+                            <label key={cat} className="flex items-center gap-2 cursor-pointer">
+                              <input type="checkbox" checked={checked}
+                                onChange={() => {
+                                  const next = checked ? selected.filter(c => c !== cat) : [...selected, cat];
+                                  setFormDati(p => ({ ...p, categoriaProdotto: next.join(",") }));
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORIA_COLORS[cat] ?? ""}`}>{cat}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1 block">Brand</label>
@@ -589,15 +598,28 @@ export default function LeadDetailPage() {
                       const resolved = resolveValue(key, val);
                       const isVin = key === "vinCode";
                       const isCategoria = key === "categoriaProdotto";
-                      const categoriaClass = isCategoria && resolved !== "—" ? CATEGORIA_COLORS[resolved] : null;
+                      const isLibretto = key === "librettoUrl";
                       return (
                         <div key={key} className="min-w-0">
                           <dt className="text-xs text-gray-400 mb-0.5">{FIELD_LABELS[key] ?? key}</dt>
                           <dd className="text-sm font-medium text-gray-800 break-words">
-                            {categoriaClass ? (
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${categoriaClass}`}>{resolved}</span>
+                            {isCategoria && resolved !== "—" ? (
+                              <div className="flex flex-wrap gap-1">
+                                {resolved.split(",").map((cat) => cat.trim()).filter(Boolean).map((cat) => (
+                                  <span key={cat} className={`inline-block px-2 py-0.5 rounded-full text-xs ${CATEGORIA_COLORS[cat] ?? "bg-gray-100 text-gray-600"}`}>{cat}</span>
+                                ))}
+                              </div>
                             ) : isVin && resolved !== "—" ? (
                               <span className="font-mono text-xs bg-gray-50 px-2 py-0.5 rounded">{resolved}</span>
+                            ) : isLibretto && resolved !== "—" ? (
+                              <a
+                                href={`/api/admin/leads/blob?url=${encodeURIComponent(resolved)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-blue-600 hover:underline text-xs"
+                              >
+                                📄 Visualizza libretto
+                              </a>
                             ) : resolved === "—" ? (
                               <span className="text-gray-300 font-normal">—</span>
                             ) : resolved}

@@ -24,6 +24,7 @@ export interface MagnusLeadData {
   brandProdotto?: string;
   categoriaProdotto?: CategoriaProdotto;
   vinCode?: string;
+  librettoUrl?: string;
   linkProdotto?: string;
   noteAggiuntive?: string;
 }

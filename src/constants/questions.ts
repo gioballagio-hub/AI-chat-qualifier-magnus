@@ -61,6 +61,13 @@ export const AZIENDA_STEPS: ChatStep[] = [
     placeholder: "Es: 1HGBH41JXMN109186",
   },
   {
+    id: "libretto",
+    question:
+      "Puoi caricare il libretto del veicolo? Ci aiuta a identificare il ricambio esatto. (facoltativo, solo PDF/JPG/PNG — max 5MB)",
+    type: "file",
+    required: false,
+  },
+  {
     id: "noteAggiuntive",
     question:
       "Hai link a prodotti, foto o altre informazioni utili? Aggiungile qui. (facoltativo)",
@@ -118,6 +125,13 @@ export const PRIVATO_STEPS: ChatStep[] = [
     placeholder: "Es: 1HGBH41JXMN109186",
   },
   {
+    id: "libretto",
+    question:
+      "Puoi caricare il libretto del veicolo? Ci aiuta a identificare il ricambio esatto. (facoltativo, solo PDF/JPG/PNG — max 5MB)",
+    type: "file",
+    required: false,
+  },
+  {
     id: "noteAggiuntive",
     question:
       "Hai link a prodotti, foto o altre informazioni utili? Aggiungile qui. (facoltativo)",
@@ -148,6 +162,8 @@ export const FIELD_LABELS: Record<string, string> = {
   brandProdotto: "Brand",
   codiceProdotto: "Codice prodotto",
   vinCode: "Numero di telaio (VIN)",
+  libretto: "Libretto veicolo",
+  librettoUrl: "Libretto veicolo",
   linkProdotto: "Link / Foto",
   noteAggiuntive: "Note aggiuntive",
 };

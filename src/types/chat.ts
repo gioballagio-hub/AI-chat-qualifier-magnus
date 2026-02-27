@@ -1,6 +1,6 @@
 import type { ClienteType, LeadSummary, ContactInfo } from "./lead";
 
-export type QuestionType = "select" | "freetext" | "textarea";
+export type QuestionType = "select" | "freetext" | "textarea" | "file";
 
 export interface SelectOption {
   label: string;

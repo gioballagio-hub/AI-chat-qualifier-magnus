@@ -25,7 +25,7 @@ const UpdateSchema = z.object({
   leadData: z.object({
     clienteType: z.enum(["AZIENDA", "PRIVATO", "INDEFINITO"]).optional(),
     descrizioneProdotto: z.string().optional(),
-    categoriaProdotto: z.enum(["Accessori", "Ricambi", "Lubrificanti", "Vernici", ""]).optional(),
+    categoriaProdotto: z.string().optional(), // può essere comma-separated: "Ricambi,Lubrificanti"
     brandProdotto: z.string().optional(),
     codiceProdotto: z.string().optional(),
     vinCode: z.string().optional(),
