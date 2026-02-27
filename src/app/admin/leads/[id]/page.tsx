@@ -294,26 +294,29 @@ export default function LeadDetailPage() {
   return (
     <div className="max-w-6xl space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={() => router.push("/admin")}
-          className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer"
-        >
-          ← Lista lead
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">
-          {lead.clienteType === "AZIENDA" ? "🏢 Azienda" : "👤 Privato"}
-        </h1>
-        <ScoreBadge score={lead.score} />
-        {isAdmin && (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
-            onClick={deleteLead}
-            disabled={deleting}
-            className="ml-auto text-xs text-red-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
+            onClick={() => router.push("/admin")}
+            className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer"
           >
-            {deleting ? "Eliminando…" : "🗑 Elimina lead"}
+            ← Lista lead
           </button>
-        )}
+          <h1 className="text-xl font-bold text-gray-900">
+            {lead.clienteType === "AZIENDA" ? "🏢 Azienda" : "👤 Privato"}
+          </h1>
+          <ScoreBadge score={lead.score} />
+          {isAdmin && (
+            <button
+              onClick={deleteLead}
+              disabled={deleting}
+              className="ml-auto text-xs text-red-400 hover:text-red-600 cursor-pointer disabled:opacity-50"
+            >
+              {deleting ? "Eliminando…" : "🗑 Elimina lead"}
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 pl-1">{lead.nextStep}</p>
       </div>
 
       {msg && (
@@ -647,21 +650,6 @@ export default function LeadDetailPage() {
             />
           )}
 
-          {/* Prossimo step + metadata */}
-          <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 mb-0.5">Prossimo step suggerito</p>
-              <p className="text-sm font-medium text-gray-800">{lead.nextStep}</p>
-            </div>
-            <p className="text-xs text-gray-400 shrink-0 text-right">
-              {lead.id.slice(0, 8)}…<br />
-              {new Date(lead.createdAt).toLocaleString("it-IT", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-          </div>
         </div>
 
         {/* Colonna destra — sticky */}
