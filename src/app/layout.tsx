@@ -5,8 +5,15 @@ import "./globals.css";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Lead Qualifier — Agenzia Immobiliare",
-  description: "Qualifica la tua richiesta immobiliare in 60 secondi",
+  title: "Magnus SRL — Richiesta Ricambi e Accessori",
+  description: "Invia la tua richiesta di ricambi, accessori, lubrificanti e vernici per veicoli americani. Il nostro team ti risponderà al più presto.",
+  openGraph: {
+    title: "Magnus SRL — Richiesta Ricambi e Accessori",
+    description: "Invia la tua richiesta di ricambi, accessori, lubrificanti e vernici per veicoli americani.",
+    siteName: "Magnus SRL",
+    locale: "it_IT",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

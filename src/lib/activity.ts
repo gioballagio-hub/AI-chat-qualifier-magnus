@@ -11,7 +11,8 @@ export type AzioneLog =
   | "WEBHOOK_REINVIATO"
   | "STATO_AGGIORNATO"
   | "LEAD_CREATO_DA_EMAIL"
-  | "FOLLOWUP_EMAIL_INVIATA";
+  | "FOLLOWUP_EMAIL_INVIATA"
+  | "LEAD_MODIFICATO";
 
 export async function logActivity(params: {
   leadId: string;

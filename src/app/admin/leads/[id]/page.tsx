@@ -82,6 +82,16 @@ export default function LeadDetailPage() {
   const [initialNote, setInitialNote] = useState<Nota[] | undefined>(undefined);
   const [initialLogs, setInitialLogs] = useState<ActivityEntry[] | undefined>(undefined);
 
+  // Edit mode — Dati di contatto
+  const [editingContatto, setEditingContatto] = useState(false);
+  const [savingContatto, setSavingContatto] = useState(false);
+  const [formContatto, setFormContatto] = useState({ nome: "", cognome: "", emailContatto: "", telefono: "" });
+
+  // Edit mode — Dati raccolti
+  const [editingDati, setEditingDati] = useState(false);
+  const [savingDati, setSavingDati] = useState(false);
+  const [formDati, setFormDati] = useState<Record<string, string>>({});
+
   // Una sola chiamata che porta lead + note + log + utenti
   useEffect(() => {
     fetch(`/api/admin/leads/${id}/full`)
@@ -175,6 +185,81 @@ export default function LeadDetailPage() {
     }
   };
 
+  const startEditContatto = () => {
+    if (!lead) return;
+    setFormContatto({
+      nome: lead.nome ?? "",
+      cognome: lead.cognome ?? "",
+      emailContatto: lead.emailContatto ?? "",
+      telefono: lead.telefono ?? "",
+    });
+    setEditingContatto(true);
+  };
+
+  const saveContatto = async () => {
+    setSavingContatto(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: formContatto.nome,
+          cognome: formContatto.cognome,
+          emailContatto: formContatto.emailContatto,
+          telefono: formContatto.telefono || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      const updated: LeadSummary = await res.json();
+      setLead(updated);
+      setEditingContatto(false);
+      setMsg({ type: "ok", text: "Dati di contatto aggiornati." });
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
+    } finally {
+      setSavingContatto(false);
+    }
+  };
+
+  const startEditDati = () => {
+    if (!lead) return;
+    const data = lead.data as unknown as Record<string, unknown>;
+    setFormDati({
+      clienteType: lead.clienteType ?? "INDEFINITO",
+      descrizioneProdotto: (data.descrizioneProdotto as string) ?? "",
+      categoriaProdotto: (data.categoriaProdotto as string) ?? "",
+      brandProdotto: (data.brandProdotto as string) ?? "",
+      codiceProdotto: (data.codiceProdotto as string) ?? "",
+      vinCode: (data.vinCode as string) ?? "",
+      noteAggiuntive: (data.noteAggiuntive as string) ?? "",
+      ragioneSociale: (data.ragioneSociale as string) ?? "",
+      partitaIVA: (data.partitaIVA as string) ?? "",
+    });
+    setEditingDati(true);
+  };
+
+  const saveDati = async () => {
+    setSavingDati(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadData: formDati }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      const updated: LeadSummary = await res.json();
+      setLead(updated);
+      setEditingDati(false);
+      setMsg({ type: "ok", text: "Dati aggiornati." });
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
+    } finally {
+      setSavingDati(false);
+    }
+  };
+
   const deleteLead = async () => {
     if (!confirm("Eliminare questo lead? L'operazione non è reversibile.")) return;
     setDeleting(true);
@@ -248,28 +333,59 @@ export default function LeadDetailPage() {
         <div className="lg:col-span-2 space-y-4">
 
           {/* Dati di contatto */}
-          {(lead.nome || lead.emailContatto) && (
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Dati di contatto</span>
-              </CardHeader>
-              <CardBody>
+                {!editingContatto ? (
+                  <button onClick={startEditContatto} className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer">✏️ Modifica</button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingContatto(false)} className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Annulla</button>
+                    <Button onClick={saveContatto} loading={savingContatto} size="sm">Salva</Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardBody>
+              {editingContatto ? (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Nome</label>
+                      <input type="text" value={formContatto.nome} onChange={(e) => setFormContatto(p => ({ ...p, nome: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Cognome</label>
+                      <input type="text" value={formContatto.cognome} onChange={(e) => setFormContatto(p => ({ ...p, cognome: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Email</label>
+                    <input type="email" value={formContatto.emailContatto} onChange={(e) => setFormContatto(p => ({ ...p, emailContatto: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Telefono</label>
+                    <input type="tel" value={formContatto.telefono} onChange={(e) => setFormContatto(p => ({ ...p, telefono: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                  </div>
+                </div>
+              ) : (
                 <dl className="space-y-2 text-sm">
                   {lead.nome && (
                     <div className="flex justify-between items-center">
                       <dt className="text-gray-500">Nome</dt>
-                      <dd className="font-medium text-gray-800">
-                        {lead.nome} {lead.cognome}
-                      </dd>
+                      <dd className="font-medium text-gray-800">{lead.nome} {lead.cognome}</dd>
                     </div>
                   )}
                   {lead.emailContatto && (
                     <div className="flex justify-between items-center">
                       <dt className="text-gray-500">Email</dt>
                       <dd className="font-medium">
-                        <a href={`mailto:${lead.emailContatto}`} className="text-blue-600 hover:underline">
-                          {lead.emailContatto}
-                        </a>
+                        <a href={`mailto:${lead.emailContatto}`} className="text-blue-600 hover:underline">{lead.emailContatto}</a>
                       </dd>
                     </div>
                   )}
@@ -277,35 +393,23 @@ export default function LeadDetailPage() {
                     <div className="flex justify-between items-center">
                       <dt className="text-gray-500">Telefono</dt>
                       <dd className="font-medium">
-                        <a href={`tel:${lead.telefono}`} className="text-blue-600 hover:underline">
-                          {lead.telefono}
-                        </a>
+                        <a href={`tel:${lead.telefono}`} className="text-blue-600 hover:underline">{lead.telefono}</a>
                       </dd>
                     </div>
                   )}
                   <div className="flex justify-between items-center">
                     <dt className="text-gray-500">Email inviata</dt>
-                    <dd>
-                      <Badge variant={lead.emailInviata ? "new" : "archived"}>
-                        {lead.emailInviata ? "Sì" : "No"}
-                      </Badge>
-                    </dd>
+                    <dd><Badge variant={lead.emailInviata ? "new" : "archived"}>{lead.emailInviata ? "Sì" : "No"}</Badge></dd>
                   </div>
-                  {/* Commerciale assegnato */}
                   <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-50">
                     <dt className="text-gray-500">Commerciale</dt>
                     <dd>
                       {isAdmin ? (
-                        <select
-                          value={lead.commercialeAssegnato ?? ""}
-                          onChange={(e) => changeCommerciale(e.target.value)}
+                        <select value={lead.commercialeAssegnato ?? ""} onChange={(e) => changeCommerciale(e.target.value)}
                           disabled={updatingCommerciale}
-                          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-800 focus:outline-none focus:border-blue-400 disabled:opacity-50 cursor-pointer bg-white"
-                        >
+                          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-800 focus:outline-none focus:border-blue-400 disabled:opacity-50 cursor-pointer bg-white">
                           <option value="">— Non assegnato —</option>
-                          {utenti.map((u) => (
-                            <option key={u.id} value={u.nome}>{u.nome}</option>
-                          ))}
+                          {utenti.map((u) => (<option key={u.id} value={u.nome}>{u.nome}</option>))}
                         </select>
                       ) : (
                         <span className={`font-medium text-sm ${lead.commercialeAssegnato ? "text-gray-800" : "text-gray-400 italic"}`}>
@@ -315,9 +419,9 @@ export default function LeadDetailPage() {
                     </dd>
                   </div>
                 </dl>
-              </CardBody>
-            </Card>
-          )}
+              )}
+            </CardBody>
+          </Card>
 
           {/* Pipeline & Stato — unica card */}
           <Card>
@@ -392,42 +496,122 @@ export default function LeadDetailPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Dati raccolti</span>
-                <span className="text-xs text-gray-400">{Math.round(lead.completeness)}% completo</span>
+                {!editingDati ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400">{Math.round(lead.completeness)}% completo</span>
+                    <button onClick={startEditDati} className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer">✏️ Modifica</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingDati(false)} className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Annulla</button>
+                    <Button onClick={saveDati} loading={savingDati} size="sm">Salva</Button>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardBody>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {fields.map(([key, val]) => {
-                  const resolved = resolveValue(key, val);
-                  const isVin = key === "vinCode";
-                  const isCategoria = key === "categoriaProdotto";
-                  const categoriaClass = isCategoria && resolved !== "—" ? CATEGORIA_COLORS[resolved] : null;
-                  return (
-                    <div key={key} className="min-w-0">
-                      <dt className="text-xs text-gray-400 mb-0.5">{FIELD_LABELS[key] ?? key}</dt>
-                      <dd className="text-sm font-medium text-gray-800 break-words">
-                        {categoriaClass ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${categoriaClass}`}>
-                            {resolved}
-                          </span>
-                        ) : isVin && resolved !== "—" ? (
-                          <span className="font-mono text-xs bg-gray-50 px-2 py-0.5 rounded">
-                            {resolved}
-                          </span>
-                        ) : resolved === "—" ? (
-                          <span className="text-gray-300 font-normal">—</span>
-                        ) : (
-                          resolved
-                        )}
-                      </dd>
+              {editingDati ? (
+                <div className="space-y-3 text-sm">
+                  {/* Tipo cliente */}
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Tipo cliente</label>
+                    <select value={formDati.clienteType ?? ""} onChange={(e) => setFormDati(p => ({ ...p, clienteType: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                      <option value="AZIENDA">Azienda</option>
+                      <option value="PRIVATO">Privato</option>
+                      <option value="INDEFINITO">Indefinito</option>
+                    </select>
+                  </div>
+                  {/* Campi azienda */}
+                  {formDati.clienteType === "AZIENDA" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Ragione Sociale</label>
+                        <input type="text" value={formDati.ragioneSociale ?? ""} onChange={(e) => setFormDati(p => ({ ...p, ragioneSociale: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Partita IVA</label>
+                        <input type="text" value={formDati.partitaIVA ?? ""} onChange={(e) => setFormDati(p => ({ ...p, partitaIVA: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                      </div>
                     </div>
-                  );
-                })}
-              </dl>
-              {lead.missingFields.length > 0 && (
-                <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Campi mancanti: {lead.missingFields.map((f) => FIELD_LABELS[f] ?? f).join(", ")}
+                  )}
+                  {/* Descrizione */}
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Cosa cerca</label>
+                    <textarea rows={3} value={formDati.descrizioneProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, descrizioneProdotto: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white resize-none" />
+                  </div>
+                  {/* Categoria + Brand */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Categoria</label>
+                      <select value={formDati.categoriaProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, categoriaProdotto: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                        <option value="">— Nessuna —</option>
+                        <option value="Accessori">Accessori</option>
+                        <option value="Ricambi">Ricambi</option>
+                        <option value="Lubrificanti">Lubrificanti</option>
+                        <option value="Vernici">Vernici</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Brand</label>
+                      <input type="text" value={formDati.brandProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, brandProdotto: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    </div>
+                  </div>
+                  {/* Codice + VIN */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Codice prodotto</label>
+                      <input type="text" value={formDati.codiceProdotto ?? ""} onChange={(e) => setFormDati(p => ({ ...p, codiceProdotto: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">VIN</label>
+                      <input type="text" value={formDati.vinCode ?? ""} onChange={(e) => setFormDati(p => ({ ...p, vinCode: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 font-mono text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    </div>
+                  </div>
+                  {/* Note aggiuntive */}
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Note aggiuntive</label>
+                    <textarea rows={2} value={formDati.noteAggiuntive ?? ""} onChange={(e) => setFormDati(p => ({ ...p, noteAggiuntive: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400 bg-white resize-none" />
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    {fields.map(([key, val]) => {
+                      const resolved = resolveValue(key, val);
+                      const isVin = key === "vinCode";
+                      const isCategoria = key === "categoriaProdotto";
+                      const categoriaClass = isCategoria && resolved !== "—" ? CATEGORIA_COLORS[resolved] : null;
+                      return (
+                        <div key={key} className="min-w-0">
+                          <dt className="text-xs text-gray-400 mb-0.5">{FIELD_LABELS[key] ?? key}</dt>
+                          <dd className="text-sm font-medium text-gray-800 break-words">
+                            {categoriaClass ? (
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${categoriaClass}`}>{resolved}</span>
+                            ) : isVin && resolved !== "—" ? (
+                              <span className="font-mono text-xs bg-gray-50 px-2 py-0.5 rounded">{resolved}</span>
+                            ) : resolved === "—" ? (
+                              <span className="text-gray-300 font-normal">—</span>
+                            ) : resolved}
+                          </dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                  {lead.missingFields.length > 0 && (
+                    <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Campi mancanti: {lead.missingFields.map((f) => FIELD_LABELS[f] ?? f).join(", ")}
+                    </div>
+                  )}
+                </>
               )}
             </CardBody>
           </Card>

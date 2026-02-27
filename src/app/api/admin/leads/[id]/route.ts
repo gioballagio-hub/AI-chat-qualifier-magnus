@@ -6,13 +6,33 @@ import { logger } from "@/lib/logger";
 import { getSessionFromCookies } from "@/lib/auth";
 import { sendCommercialEmail } from "@/lib/email";
 import { logActivity } from "@/lib/activity";
+import { calcScore, calcNextStep } from "@/lib/scoring";
+import { calcCompleteness } from "@/lib/completeness";
 import type { LeadSummary, ClienteType, MagnusLeadData, StatoLead } from "@/types/lead";
 
 const UpdateSchema = z.object({
+  // Campi esistenti
   status: z.enum(["NEW", "CONTACTED", "ARCHIVED"]).optional(),
   statoLead: z.enum(["NUOVO", "IN_LAVORAZIONE", "OFFERTA_INVIATA", "CHIUSO_VINTO", "CHIUSO_PERSO"]).optional(),
   commercialeAssegnato: z.string().nullable().optional(),
   resend: z.boolean().optional(),
+  // Dati di contatto editabili
+  nome: z.string().optional(),
+  cognome: z.string().optional(),
+  emailContatto: z.string().optional(),
+  telefono: z.string().nullable().optional(),
+  // Dati lead (JSON) editabili
+  leadData: z.object({
+    clienteType: z.enum(["AZIENDA", "PRIVATO", "INDEFINITO"]).optional(),
+    descrizioneProdotto: z.string().optional(),
+    categoriaProdotto: z.enum(["Accessori", "Ricambi", "Lubrificanti", "Vernici", ""]).optional(),
+    brandProdotto: z.string().optional(),
+    codiceProdotto: z.string().optional(),
+    vinCode: z.string().optional(),
+    noteAggiuntive: z.string().optional(),
+    ragioneSociale: z.string().optional(),
+    partitaIVA: z.string().optional(),
+  }).optional(),
 });
 
 function toSummary(l: {
@@ -151,6 +171,46 @@ export async function PATCH(
     updateData["commercialeAssegnato"] = nuovoCommerciale;
   }
 
+  // Aggiornamento dati di contatto
+  if (parsed.data.nome !== undefined) updateData["nome"] = parsed.data.nome || null;
+  if (parsed.data.cognome !== undefined) updateData["cognome"] = parsed.data.cognome || null;
+  if (parsed.data.emailContatto !== undefined) updateData["emailContatto"] = parsed.data.emailContatto || null;
+  if (parsed.data.telefono !== undefined) updateData["telefono"] = parsed.data.telefono || null;
+
+  // Aggiornamento dati lead (JSON) — ricalcola score/completeness
+  if (parsed.data.leadData) {
+    const existing = lead.data as Record<string, unknown>;
+    const merged = { ...existing };
+    // Applica solo i campi presenti, rimuovi quelli svuotati
+    for (const [k, v] of Object.entries(parsed.data.leadData)) {
+      if (v === "" || v === null || v === undefined) {
+        delete merged[k];
+      } else {
+        merged[k] = v;
+      }
+    }
+    const clienteType = (merged.clienteType as string) ?? lead.clienteType;
+    merged["clienteType"] = clienteType;
+    const magnusData = merged as unknown as MagnusLeadData;
+    const newScore = calcScore(magnusData);
+    const newNextStep = calcNextStep(newScore, clienteType as MagnusLeadData["clienteType"]);
+    const { completeness, missingFields } = calcCompleteness(magnusData);
+
+    updateData["data"] = merged;
+    updateData["clienteType"] = clienteType;
+    updateData["score"] = newScore;
+    updateData["nextStep"] = newNextStep;
+    updateData["completeness"] = completeness;
+    updateData["missingFields"] = missingFields;
+    // Aggiorna colonne denormalizzate per ricerca rapida
+    updateData["ragioneSociale"] = (merged["ragioneSociale"] as string) ?? null;
+    updateData["partitaIVA"] = (merged["partitaIVA"] as string) ?? null;
+    updateData["categoriaProdotto"] = (merged["categoriaProdotto"] as string) ?? null;
+    updateData["brandProdotto"] = (merged["brandProdotto"] as string) ?? null;
+    updateData["codiceProdotto"] = (merged["codiceProdotto"] as string) ?? null;
+    updateData["vinCode"] = (merged["vinCode"] as string) ?? null;
+  }
+
   const updated = await prisma.lead.update({ where: { id }, data: updateData });
   const summary = toSummary(updated);
 
@@ -172,6 +232,15 @@ export async function PATCH(
       azione: "STATO_AGGIORNATO",
       dettagli: { da: lead.status, a: parsed.data.status },
     });
+  }
+
+  // Activity log — modifica campi
+  if (parsed.data.nome !== undefined || parsed.data.cognome !== undefined ||
+      parsed.data.emailContatto !== undefined || parsed.data.telefono !== undefined) {
+    await logActivity({ leadId: id, autore: session.nome, azione: "LEAD_MODIFICATO", dettagli: { sezione: "contatto" } });
+  }
+  if (parsed.data.leadData) {
+    await logActivity({ leadId: id, autore: session.nome, azione: "LEAD_MODIFICATO", dettagli: { sezione: "dati" } });
   }
 
   // Invia email al commerciale se è stato appena assegnato (nome diverso dal precedente)
