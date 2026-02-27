@@ -11,6 +11,7 @@ import Card, { CardBody, CardHeader } from "@/components/ui/Card";
 import { useIsAdmin } from "@/lib/session-context";
 import NoteSection from "@/components/admin/NoteSection";
 import ActivitySection from "@/components/admin/ActivitySection";
+import FollowUpEmailSection from "@/components/admin/FollowUpEmailSection";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -430,6 +431,15 @@ export default function LeadDetailPage() {
               )}
             </CardBody>
           </Card>
+
+          {/* Follow-up email — visibile se ci sono campi mancanti */}
+          {lead.missingFields.length > 0 && lead.emailContatto && (
+            <FollowUpEmailSection
+              leadId={lead.id}
+              emailContatto={lead.emailContatto}
+              missingFields={lead.missingFields}
+            />
+          )}
 
           {/* Prossimo step + metadata */}
           <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-start justify-between gap-4">
