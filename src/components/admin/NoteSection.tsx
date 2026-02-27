@@ -13,23 +13,25 @@ interface Nota {
 
 interface NoteSectionProps {
   leadId: string;
+  initialNote?: Nota[];
 }
 
-export default function NoteSection({ leadId }: NoteSectionProps) {
+export default function NoteSection({ leadId, initialNote }: NoteSectionProps) {
   const session = useSession();
-  const [note, setNote] = useState<Nota[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [note, setNote] = useState<Nota[]>(initialNote ?? []);
+  const [loading, setLoading] = useState(initialNote === undefined);
   const [testo, setTesto] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (initialNote !== undefined) return; // dati già pre-caricati
     fetch(`/api/admin/leads/${leadId}/note`)
       .then((r) => r.json())
       .then((data) => setNote(data.note ?? []))
       .finally(() => setLoading(false));
-  }, [leadId]);
+  }, [leadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll automatico all'ultima nota
   useEffect(() => {

@@ -49,6 +49,22 @@ interface Utente {
   attivo: boolean;
 }
 
+interface Nota {
+  id: string;
+  autore: string;
+  testo: string;
+  createdAt: string;
+}
+
+interface ActivityEntry {
+  id: string;
+  leadId: string;
+  autore: string;
+  azione: string;
+  dettagli: string | null;
+  createdAt: string;
+}
+
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -62,23 +78,21 @@ export default function LeadDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [utenti, setUtenti] = useState<Utente[]>([]);
+  const [initialNote, setInitialNote] = useState<Nota[] | undefined>(undefined);
+  const [initialLogs, setInitialLogs] = useState<ActivityEntry[] | undefined>(undefined);
 
+  // Una sola chiamata che porta lead + note + log + utenti
   useEffect(() => {
-    fetch(`/api/admin/leads/${id}`)
-      .then((r) => r.json())
-      .then(setLead)
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetch("/api/admin/users")
+    fetch(`/api/admin/leads/${id}/full`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setUtenti(data.filter((u: Utente) => u.attivo));
+        if (data.lead) setLead(data.lead);
+        if (Array.isArray(data.note)) setInitialNote(data.note);
+        if (Array.isArray(data.log)) setInitialLogs(data.log);
+        if (Array.isArray(data.utenti)) setUtenti(data.utenti);
       })
-      .catch(() => {});
-  }, [isAdmin]);
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const changeStatus = async (status: LeadStatus) => {
     setUpdating(true);
@@ -436,14 +450,14 @@ export default function LeadDetailPage() {
 
         {/* Colonna destra — sticky */}
         <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <NoteSection leadId={lead.id} />
+          <NoteSection leadId={lead.id} initialNote={initialNote} />
           <Card>
             <CardHeader>
               <span className="text-sm font-medium text-gray-700">🕐 Cronologia attività</span>
             </CardHeader>
             <CardBody>
               <div className="max-h-72 overflow-y-auto">
-                <ActivitySection leadId={lead.id} />
+                <ActivitySection leadId={lead.id} initialLogs={initialLogs} />
               </div>
             </CardBody>
           </Card>

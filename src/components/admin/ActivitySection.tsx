@@ -53,11 +53,18 @@ function formatDettagli(azione: string, dettagli: string | null): string {
   }
 }
 
-export default function ActivitySection({ leadId }: { leadId: string }) {
-  const [logs, setLogs] = useState<ActivityEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ActivitySection({
+  leadId,
+  initialLogs,
+}: {
+  leadId: string;
+  initialLogs?: ActivityEntry[];
+}) {
+  const [logs, setLogs] = useState<ActivityEntry[]>(initialLogs ?? []);
+  const [loading, setLoading] = useState(initialLogs === undefined);
 
   useEffect(() => {
+    if (initialLogs !== undefined) return; // dati già pre-caricati
     fetch(`/api/admin/leads/${leadId}/log`)
       .then((r) => r.json())
       .then((data) => {
@@ -65,7 +72,7 @@ export default function ActivitySection({ leadId }: { leadId: string }) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [leadId]);
+  }, [leadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <p className="text-xs text-gray-400">Caricamento log…</p>;
