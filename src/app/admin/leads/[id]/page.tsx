@@ -18,19 +18,35 @@ const statusLabel: Record<LeadStatus, string> = {
   ARCHIVED: "Archiviato",
 };
 
-const PIPELINE_STEPS: { value: StatoLead; label: string; color: string }[] = [
-  { value: "NUOVO", label: "🆕 Nuovo", color: "gray" },
-  { value: "IN_LAVORAZIONE", label: "⚙️ In lavorazione", color: "blue" },
-  { value: "OFFERTA_INVIATA", label: "📤 Offerta inviata", color: "amber" },
-  { value: "CHIUSO_VINTO", label: "✅ Chiuso vinto", color: "green" },
-  { value: "CHIUSO_PERSO", label: "❌ Chiuso perso", color: "red" },
+const PIPELINE_STEPS: { value: StatoLead; label: string }[] = [
+  { value: "NUOVO", label: "🆕 Nuovo" },
+  { value: "IN_LAVORAZIONE", label: "⚙️ In lavorazione" },
+  { value: "OFFERTA_INVIATA", label: "📤 Offerta inviata" },
+  { value: "CHIUSO_VINTO", label: "✅ Chiuso vinto" },
+  { value: "CHIUSO_PERSO", label: "❌ Chiuso perso" },
 ];
+
+const CATEGORIA_COLORS: Record<string, string> = {
+  Accessori: "bg-blue-50 text-blue-700 border border-blue-200",
+  Ricambi: "bg-amber-50 text-amber-700 border border-amber-200",
+  Lubrificanti: "bg-green-50 text-green-700 border border-green-200",
+  Vernici: "bg-purple-50 text-purple-700 border border-purple-200",
+};
 
 function resolveValue(field: string, value: unknown): string {
   if (!value) return "—";
+  const str = String(value);
+  if (["no", "non ho niente", "n/a", "nessuno", "niente"].includes(str.toLowerCase())) return "—";
   const map = LABEL_MAP[field];
-  if (map && typeof value === "string" && map[value]) return map[value];
-  return String(value);
+  if (map && map[str]) return map[str];
+  return str;
+}
+
+interface Utente {
+  id: string;
+  nome: string;
+  ruolo: string;
+  attivo: boolean;
 }
 
 export default function LeadDetailPage() {
@@ -41,9 +57,11 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [updatingPipeline, setUpdatingPipeline] = useState(false);
+  const [updatingCommerciale, setUpdatingCommerciale] = useState(false);
   const [resending, setResending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [utenti, setUtenti] = useState<Utente[]>([]);
 
   useEffect(() => {
     fetch(`/api/admin/leads/${id}`)
@@ -51,6 +69,16 @@ export default function LeadDetailPage() {
       .then(setLead)
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/admin/users")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUtenti(data.filter((u: Utente) => u.attivo));
+      })
+      .catch(() => {});
+  }, [isAdmin]);
 
   const changeStatus = async (status: LeadStatus) => {
     setUpdating(true);
@@ -111,6 +139,27 @@ export default function LeadDetailPage() {
     }
   };
 
+  const changeCommerciale = async (nuovoNome: string) => {
+    setUpdatingCommerciale(true);
+    setMsg(null);
+    try {
+      const value = nuovoNome === "" ? null : nuovoNome;
+      const res = await fetch(`/api/admin/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commercialeAssegnato: value }),
+      });
+      if (!res.ok) throw new Error("Errore assegnazione commerciale");
+      const updated: LeadSummary = await res.json();
+      setLead(updated);
+      setMsg({ type: "ok", text: "Commerciale aggiornato." });
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Errore" });
+    } finally {
+      setUpdatingCommerciale(false);
+    }
+  };
+
   const deleteLead = async () => {
     if (!confirm("Eliminare questo lead? L'operazione non è reversibile.")) return;
     setDeleting(true);
@@ -143,7 +192,8 @@ export default function LeadDetailPage() {
   const fields = Object.entries(lead.data).filter(([k]) => k !== "zonaRaw");
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="max-w-6xl space-y-4">
+      {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => router.push("/admin")}
@@ -176,175 +226,230 @@ export default function LeadDetailPage() {
         </div>
       )}
 
-      {/* Dati contatto */}
-      {(lead.nome || lead.emailContatto) && (
-        <Card>
-          <CardHeader>
-            <span className="text-sm font-medium text-gray-700">Dati di contatto</span>
-          </CardHeader>
-          <CardBody>
-            <dl className="space-y-2 text-sm">
-              {lead.nome && (
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Nome</dt>
-                  <dd className="font-medium text-gray-800">
-                    {lead.nome} {lead.cognome}
-                  </dd>
-                </div>
-              )}
-              {lead.emailContatto && (
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Email</dt>
-                  <dd className="font-medium text-gray-800">
-                    <a
-                      href={`mailto:${lead.emailContatto}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {lead.emailContatto}
-                    </a>
-                  </dd>
-                </div>
-              )}
-              {lead.telefono && (
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Telefono</dt>
-                  <dd className="font-medium text-gray-800">
-                    <a href={`tel:${lead.telefono}`} className="text-blue-600 hover:underline">
-                      {lead.telefono}
-                    </a>
-                  </dd>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Email inviata</dt>
-                <dd>
-                  <Badge variant={lead.emailInviata ? "new" : "archived"}>
-                    {lead.emailInviata ? "Sì" : "No"}
-                  </Badge>
-                </dd>
-              </div>
-            </dl>
-          </CardBody>
-        </Card>
-      )}
+      {/* Layout a 2 colonne */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      {/* Dati raccolti */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Dati raccolti</span>
-            <span className="text-xs text-gray-400">
-              {Math.round(lead.completeness)}% completo
-            </span>
-          </div>
-        </CardHeader>
-        <CardBody>
-          <dl className="space-y-3">
-            {fields.map(([key, val]) => (
-              <div key={key} className="flex justify-between text-sm border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                <dt className="text-gray-500">{FIELD_LABELS[key] ?? key}</dt>
-                <dd className="font-medium text-gray-800 text-right max-w-[60%]">
-                  {resolveValue(key, val)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          {lead.missingFields.length > 0 && (
-            <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Campi mancanti:{" "}
-              {lead.missingFields.map((f) => FIELD_LABELS[f] ?? f).join(", ")}
-            </div>
+        {/* Colonna sinistra */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Dati di contatto */}
+          {(lead.nome || lead.emailContatto) && (
+            <Card>
+              <CardHeader>
+                <span className="text-sm font-medium text-gray-700">Dati di contatto</span>
+              </CardHeader>
+              <CardBody>
+                <dl className="space-y-2 text-sm">
+                  {lead.nome && (
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-500">Nome</dt>
+                      <dd className="font-medium text-gray-800">
+                        {lead.nome} {lead.cognome}
+                      </dd>
+                    </div>
+                  )}
+                  {lead.emailContatto && (
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-500">Email</dt>
+                      <dd className="font-medium">
+                        <a href={`mailto:${lead.emailContatto}`} className="text-blue-600 hover:underline">
+                          {lead.emailContatto}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                  {lead.telefono && (
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-500">Telefono</dt>
+                      <dd className="font-medium">
+                        <a href={`tel:${lead.telefono}`} className="text-blue-600 hover:underline">
+                          {lead.telefono}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <dt className="text-gray-500">Email inviata</dt>
+                    <dd>
+                      <Badge variant={lead.emailInviata ? "new" : "archived"}>
+                        {lead.emailInviata ? "Sì" : "No"}
+                      </Badge>
+                    </dd>
+                  </div>
+                  {/* Commerciale assegnato */}
+                  <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-50">
+                    <dt className="text-gray-500">Commerciale</dt>
+                    <dd>
+                      {isAdmin ? (
+                        <select
+                          value={lead.commercialeAssegnato ?? ""}
+                          onChange={(e) => changeCommerciale(e.target.value)}
+                          disabled={updatingCommerciale}
+                          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-800 focus:outline-none focus:border-blue-400 disabled:opacity-50 cursor-pointer bg-white"
+                        >
+                          <option value="">— Non assegnato —</option>
+                          {utenti.map((u) => (
+                            <option key={u.id} value={u.nome}>{u.nome}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`font-medium text-sm ${lead.commercialeAssegnato ? "text-gray-800" : "text-gray-400 italic"}`}>
+                          {lead.commercialeAssegnato ?? "Non assegnato"}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </CardBody>
+            </Card>
           )}
-        </CardBody>
-      </Card>
 
-      {/* Prossimo step */}
-      <Card>
-        <CardBody>
-          <p className="text-xs text-gray-400 mb-1">Prossimo step suggerito</p>
-          <p className="text-sm font-medium text-gray-800">{lead.nextStep}</p>
-        </CardBody>
-      </Card>
-
-      {/* Pipeline */}
-      <Card>
-        <CardHeader>
-          <span className="text-sm font-medium text-gray-700">Pipeline</span>
-        </CardHeader>
-        <CardBody className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {PIPELINE_STEPS.map((step) => {
-              const isActive = lead.statoLead === step.value;
-              return (
-                <button
-                  key={step.value}
-                  onClick={() => changePipeline(step.value)}
-                  disabled={updatingPipeline || isActive}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-default ${
-                    isActive
-                      ? "border-blue-500 bg-blue-600 text-white shadow-sm"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {step.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Stato tecnico (NEW/CONTACTED/ARCHIVED) */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2">Stato tecnico</p>
-            <div className="flex gap-2 flex-wrap">
-              {(["NEW", "CONTACTED", "ARCHIVED"] as LeadStatus[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => changeStatus(s)}
-                  disabled={updating || lead.status === s}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-default ${
-                    lead.status === s
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {statusLabel[s]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {isAdmin && (
-            <div className="flex items-center justify-between">
+          {/* Pipeline & Stato — unica card */}
+          <Card>
+            <CardHeader>
+              <span className="text-sm font-medium text-gray-700">Pipeline & Stato</span>
+            </CardHeader>
+            <CardBody className="space-y-0">
+              {/* Pipeline */}
               <div>
-                <p className="text-xs text-gray-400">Webhook</p>
-                <Badge variant={lead.sentToIntegration ? "new" : "archived"}>
-                  {lead.sentToIntegration ? "Inviato" : "Non inviato"}
-                </Badge>
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Pipeline</p>
+                <div className="flex flex-wrap gap-2">
+                  {PIPELINE_STEPS.map((step) => {
+                    const isActive = lead.statoLead === step.value;
+                    return (
+                      <button
+                        key={step.value}
+                        onClick={() => changePipeline(step.value)}
+                        disabled={updatingPipeline || isActive}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-default ${
+                          isActive
+                            ? "border-blue-500 bg-blue-600 text-white shadow-sm"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {step.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <Button onClick={resend} loading={resending} variant="secondary" size="sm">
-                Re-invia webhook
-              </Button>
+
+              {/* Stato tecnico */}
+              <div className="border-t border-gray-100 pt-3 mt-3">
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Stato tecnico</p>
+                <div className="flex gap-2 flex-wrap">
+                  {(["NEW", "CONTACTED", "ARCHIVED"] as LeadStatus[]).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => changeStatus(s)}
+                      disabled={updating || lead.status === s}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-default ${
+                        lead.status === s
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {statusLabel[s]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Webhook — solo admin */}
+              {isAdmin && (
+                <div className="border-t border-gray-100 pt-3 mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Webhook</p>
+                    <Badge variant={lead.sentToIntegration ? "new" : "archived"}>
+                      {lead.sentToIntegration ? "Inviato" : "Non inviato"}
+                    </Badge>
+                  </div>
+                  <Button onClick={resend} loading={resending} variant="secondary" size="sm">
+                    Re-invia webhook
+                  </Button>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+
+          {/* Dati raccolti */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Dati raccolti</span>
+                <span className="text-xs text-gray-400">{Math.round(lead.completeness)}% completo</span>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {fields.map(([key, val]) => {
+                  const resolved = resolveValue(key, val);
+                  const isVin = key === "vinCode";
+                  const isCategoria = key === "categoriaProdotto";
+                  const categoriaClass = isCategoria && resolved !== "—" ? CATEGORIA_COLORS[resolved] : null;
+                  return (
+                    <div key={key} className="min-w-0">
+                      <dt className="text-xs text-gray-400 mb-0.5">{FIELD_LABELS[key] ?? key}</dt>
+                      <dd className="text-sm font-medium text-gray-800 break-words">
+                        {categoriaClass ? (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${categoriaClass}`}>
+                            {resolved}
+                          </span>
+                        ) : isVin && resolved !== "—" ? (
+                          <span className="font-mono text-xs bg-gray-50 px-2 py-0.5 rounded">
+                            {resolved}
+                          </span>
+                        ) : resolved === "—" ? (
+                          <span className="text-gray-300 font-normal">—</span>
+                        ) : (
+                          resolved
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+              {lead.missingFields.length > 0 && (
+                <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Campi mancanti: {lead.missingFields.map((f) => FIELD_LABELS[f] ?? f).join(", ")}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+
+          {/* Prossimo step + metadata */}
+          <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-400 mb-0.5">Prossimo step suggerito</p>
+              <p className="text-sm font-medium text-gray-800">{lead.nextStep}</p>
             </div>
-          )}
-        </CardBody>
-      </Card>
+            <p className="text-xs text-gray-400 shrink-0 text-right">
+              {lead.id.slice(0, 8)}…<br />
+              {new Date(lead.createdAt).toLocaleString("it-IT", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+        </div>
 
-      {/* Note interne */}
-      <NoteSection leadId={lead.id} />
+        {/* Colonna destra — sticky */}
+        <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <NoteSection leadId={lead.id} />
+          <Card>
+            <CardHeader>
+              <span className="text-sm font-medium text-gray-700">🕐 Cronologia attività</span>
+            </CardHeader>
+            <CardBody>
+              <div className="max-h-72 overflow-y-auto">
+                <ActivitySection leadId={lead.id} />
+              </div>
+            </CardBody>
+          </Card>
+        </div>
 
-      {/* Activity log */}
-      <Card>
-        <CardHeader>
-          <span className="text-sm font-medium text-gray-700">🕐 Cronologia attività</span>
-        </CardHeader>
-        <CardBody>
-          <ActivitySection leadId={lead.id} />
-        </CardBody>
-      </Card>
-
-      <p className="text-xs text-gray-400">
-        ID: {lead.id} · Creato: {new Date(lead.createdAt).toLocaleString("it-IT")}
-      </p>
+      </div>
     </div>
   );
 }
