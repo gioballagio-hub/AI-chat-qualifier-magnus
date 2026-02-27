@@ -316,7 +316,17 @@ export default function LeadDetailPage() {
             </button>
           )}
         </div>
-        <p className="text-sm text-gray-500 pl-1">{lead.nextStep}</p>
+        <div className="flex items-center gap-2 pl-1">
+          <p className="text-sm text-gray-500">{lead.nextStep}</p>
+          <span className="text-gray-300">·</span>
+          <p className="text-xs text-gray-400 shrink-0">
+            {new Date(lead.createdAt).toLocaleDateString("it-IT", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+          </p>
+        </div>
       </div>
 
       {msg && (
