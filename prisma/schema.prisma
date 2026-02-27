@@ -40,6 +40,12 @@ model Lead {
   deletedAt         DateTime? // soft delete — null = attivo, valorizzato = eliminato
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([deletedAt])
+  @@index([createdAt(sort: Desc)])
+  @@index([score])
+  @@index([status])
+  @@index([deletedAt, createdAt(sort: Desc)])
 }
 
 model Nota {

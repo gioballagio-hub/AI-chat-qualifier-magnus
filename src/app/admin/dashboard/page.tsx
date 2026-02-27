@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import type { StatoLead } from "@/types/lead";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60; // aggiorna i dati ogni 60 secondi
 
 // Helper: calcola percentuale sicura
 function pct(num: number, den: number) {
