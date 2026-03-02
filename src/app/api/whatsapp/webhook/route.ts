@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { prisma } from "@/lib/prisma";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const FORM_URL = "https://gestione.aixum.it/qualifica";
+const DEBOUNCE_MS = 10_000; // attendi 10 secondi prima di rispondere
 
 // ─── Verifica webhook (GET) — richiesta da Meta al momento della configurazione ───
 export async function GET(request: NextRequest) {
@@ -41,12 +45,8 @@ export async function POST(request: NextRequest) {
     const messageType = message.type;
     const businessPhoneNumberId = value.metadata?.phone_number_id;
 
-    let incomingText = "";
-
-    if (messageType === "text") {
-      incomingText = message.text?.body ?? "";
-    } else {
-      // Tipi non supportati (audio, immagine, ecc.)
+    if (messageType !== "text") {
+      // Tipi non supportati (audio, immagine, ecc.) — risposta immediata
       await sendWhatsAppMessage(
         businessPhoneNumberId,
         from,
@@ -55,13 +55,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ok" }, { status: 200 });
     }
 
+    const incomingText = message.text?.body ?? "";
     console.log(`[WA] Messaggio da ${from}: "${incomingText}"`);
 
-    // Genera risposta automatica
-    const reply = await generateReply(incomingText, from);
+    // Salva il messaggio in DB
+    await prisma.waMessage.create({
+      data: {
+        phone: from,
+        text: incomingText,
+        phoneNumberId: businessPhoneNumberId,
+      },
+    });
 
-    // Invia risposta
-    await sendWhatsAppMessage(businessPhoneNumberId, from, reply);
+    // Risponde a Meta subito — l'elaborazione avviene in background dopo il debounce
+    after(async () => {
+      await processDebounced(from, businessPhoneNumberId);
+    });
 
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (error) {
@@ -70,37 +79,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ─── Debounce: aspetta, poi processa solo se nessun messaggio più recente ─────
+async function processDebounced(phone: string, phoneNumberId: string) {
+  await sleep(DEBOUNCE_MS);
+
+  // Controlla se è arrivato un messaggio più recente dallo stesso utente
+  const latest = await prisma.waMessage.findFirst({
+    where: { phone, processed: false },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!latest) return; // già tutto processato
+
+  const msSinceLast = Date.now() - latest.createdAt.getTime();
+  if (msSinceLast < DEBOUNCE_MS) {
+    // C'è un messaggio recente — il suo timer gestirà tutto
+    console.log(`[WA] Debounce skip per ${phone} — attendo messaggio più recente`);
+    return;
+  }
+
+  // Nessun messaggio recente — recupera tutti i pending e processa insieme
+  const pending = await prisma.waMessage.findMany({
+    where: { phone, processed: false },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (pending.length === 0) return;
+
+  // Marca tutti come processati prima di chiamare Claude (evita doppi invii)
+  await prisma.waMessage.updateMany({
+    where: { phone, processed: false },
+    data: { processed: true },
+  });
+
+  const combinedText = pending.map((m) => m.text).join("\n");
+  console.log(`[WA] Processo ${pending.length} messaggio/i da ${phone}: "${combinedText}"`);
+
+  const reply = await generateReply(combinedText, phone);
+  await sendWhatsAppMessage(phoneNumberId, phone, reply);
+}
+
 // ─── Genera risposta con Claude AI ────────────────────────────────────────────
 async function generateReply(text: string, _from: string): Promise<string> {
-  const formUrl = `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica`;
-
   const response = await anthropic.messages.create({
     model: "claude-opus-4-6",
     max_tokens: 1024,
-    thinking: { type: "adaptive" },
-    system: `Sei il bot WhatsApp di *Magnus SRL*, azienda italiana specializzata in ricambi, accessori, lubrificanti e vernici per veicoli americani (pickup, SUV, muscle car: Ford, Dodge, Chevrolet, RAM, Jeep, ecc.).
+    system: `Sei un operatore WhatsApp di Magnus SRL, specializzati in ricambi e accessori per veicoli americani.
 
-Il tuo compito principale è indirizzare SUBITO il cliente a compilare il form di qualifica: ${formUrl}
-
-Comportamento da seguire SEMPRE:
-1. Saluta brevemente e riconosci cosa sta cercando il cliente
-2. Spiega in UNA frase che siamo specializzati in veicoli americani
-3. Chiedi di compilare il form per ricevere un preventivo personalizzato: ${formUrl}
-4. Comunica che un commerciale risponde entro poche ore
+Scrivi come una persona reale: tono amichevole, frasi corte, naturale. Mai sembrare un bot.
 
 Regole:
-- Rispondi SEMPRE in italiano
-- Sii cordiale e diretto (massimo 3-4 frasi)
-- NON dare prezzi, disponibilità o dettagli tecnici: rimanda SEMPRE al form
-- Includi SEMPRE il link al form nella risposta
-- Usa emoji con moderazione (1-2 al massimo)`,
+- Massimo 2-3 frasi in totale
+- Niente elenchi, niente grassetti, niente emoji in eccesso (al massimo 1)
+- Capisci cosa vuole il cliente e mandalo al form per il preventivo: ${FORM_URL}
+- Scrivi il link per intero, senza modificarlo
+- Rispondi sempre in italiano`,
     messages: [{ role: "user", content: text }],
   });
 
   const textBlock = response.content.find((block) => block.type === "text");
   return (
     textBlock?.text ??
-    `Grazie per il messaggio! 🙏 Per una risposta rapida, compila il nostro form: ${formUrl}`
+    `Grazie per il messaggio! 🙏 Per una risposta rapida, compila il nostro form: ${FORM_URL}`
   );
 }
 
@@ -139,4 +179,9 @@ async function sendWhatsAppMessage(
   } else {
     console.log(`[WA] Messaggio inviato a ${to} ✓`);
   }
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
