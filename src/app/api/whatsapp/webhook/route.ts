@@ -19,22 +19,22 @@ interface WaLeadData {
   brandProdotto?: string;
   descrizioneProdotto: string;
   categoriaProdotto: "Ricambi" | "Accessori" | "Lubrificanti" | "Vernici";
+  vin?: string;
 }
 
 const SYSTEM_PROMPT = `Sei un operatore WhatsApp di Magnus SRL, specializzati in ricambi e accessori per veicoli americani (Ford, Dodge, Chevrolet, RAM, Jeep, ecc.).
 
-Il tuo obiettivo è raccogliere le informazioni necessarie per passare la richiesta al team commerciale.
+Il tuo obiettivo è raccogliere TUTTE le informazioni necessarie per compilare la scheda cliente al 100% e passarla al team commerciale.
 
 CAMPI OBBLIGATORI da raccogliere (uno alla volta, in modo naturale):
 - nome del cliente
+- cognome
 - email (per ricontattarlo)
 - tipo cliente: privato o azienda (se azienda: ragione sociale)
+- marca e modello del veicolo (es. "Ford F-150 2019")
 - descrizione di cosa cerca esattamente
-- categoria prodotto: Ricambi, Accessori, Lubrificanti, o Vernici
-
-CAMPI OPZIONALI (raccoglili se emergono naturalmente):
-- cognome
-- marca e modello del veicolo
+- categoria prodotto: deducila dalla descrizione del cliente (Ricambi, Accessori, Lubrificanti, o Vernici)
+- VIN (numero di telaio, 17 caratteri): OBBLIGATORIO solo se la categoria è Ricambi o Accessori. NON richiederlo per Vernici o Lubrificanti.
 
 STILE:
 - Scrivi come una persona reale: naturale, amichevole, mai robotico
@@ -42,17 +42,19 @@ STILE:
 - Massimo 2-3 frasi per messaggio
 - Rispondi sempre in italiano
 - Al massimo 1 emoji per messaggio
+- Per il VIN puoi spiegare brevemente che serve per trovare il ricambio/accessorio esatto
 
-QUANDO HAI TUTTI I CAMPI OBBLIGATORI (nome + email + tipo cliente + descrizione + categoria):
+QUANDO HAI TUTTI I CAMPI OBBLIGATORI:
 Scrivi un messaggio di conferma naturale (es. "Perfetto [nome], ho tutto quello che mi serve. Ti ricontatteremo a [email] entro poche ore!") poi aggiungi ESATTAMENTE questo blocco JSON alla fine, senza modifiche al formato:
 
 <LEAD_DATA>
-{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi"}
+{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi","vin":"..."}
 </LEAD_DATA>
 
 Valori validi per categoriaProdotto: "Ricambi" | "Accessori" | "Lubrificanti" | "Vernici"
 Valori validi per clienteType: "PRIVATO" | "AZIENDA"
-Non includere il blocco <LEAD_DATA> finché non hai TUTTI i campi obbligatori.`;
+Per vin: inserisci il numero di telaio se raccolto, altrimenti stringa vuota ""
+Non includere il blocco <LEAD_DATA> finché non hai TUTTI i campi obbligatori (incluso VIN se categoria è Ricambi o Accessori).`;
 
 // ─── Verifica webhook (GET) ───────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
@@ -150,6 +152,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Delay random 3-5s per simulare comportamento umano
+    const delay = 3000 + Math.floor(Math.random() * 2000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
     await sendWhatsAppMessage(businessPhoneNumberId, from, replyText);
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (error) {
@@ -166,6 +172,7 @@ async function createLeadFromWA(data: WaLeadData, phone: string): Promise<void> 
     descrizioneProdotto: data.descrizioneProdotto,
     categoriaProdotto: data.categoriaProdotto,
     brandProdotto: data.brandProdotto || undefined,
+    vinCode: data.vin || undefined,
   };
 
   const contactInfo: ContactInfo = {
