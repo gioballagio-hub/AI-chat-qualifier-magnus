@@ -21,6 +21,7 @@ interface WaLeadData {
   descrizioneProdotto: string;
   categoriaProdotto: "Ricambi" | "Accessori" | "Lubrificanti" | "Vernici";
   vin?: string;
+  librettoRicevuto?: "SI" | "NO";
 }
 
 const SYSTEM_PROMPT = `Sei un operatore WhatsApp di Magnus SRL, specializzati in ricambi e accessori per veicoli americani (Ford, Dodge, Chevrolet, RAM, Jeep, ecc.).
@@ -37,6 +38,7 @@ CAMPI OBBLIGATORI da raccogliere (uno alla volta, in modo naturale):
 - descrizione di cosa cerca esattamente
 - categoria prodotto: deducila dalla descrizione del cliente (Ricambi, Accessori, Lubrificanti, o Vernici)
 - VIN (numero di telaio, 17 caratteri): OBBLIGATORIO solo se la categoria è Ricambi o Accessori. NON richiederlo per Vernici o Lubrificanti.
+- FOTO o scansione del libretto del veicolo: OBBLIGATORIA solo se la categoria è Ricambi o Accessori. NON richiederla per Vernici o Lubrificanti. Quando la chiedi, specifica che possono oscurare i dati sensibili (nome, indirizzo) se vogliono. Quando l'utente invia una foto (vedrai "[LIBRETTO RICEVUTO]" nella conversazione), confermala e vai avanti.
 
 STILE:
 - Scrivi come una persona reale: naturale, amichevole, mai robotico
@@ -44,20 +46,26 @@ STILE:
 - Massimo 2-3 frasi per messaggio
 - Rispondi sempre in italiano
 - Al massimo 1 emoji per messaggio
-- Per il VIN puoi spiegare brevemente che serve per trovare il ricambio/accessorio esatto
+
+VERIFICA FINALE OBBLIGATORIA:
+Prima di emettere il blocco <LEAD_DATA>, fai mentalmente un check di tutti i campi obbligatori per la categoria del cliente:
+- Per Ricambi/Accessori: nome, cognome, clienteEsistente, email, clienteType, veicolo, descrizione, categoria, VIN, libretto ✓?
+- Per Vernici/Lubrificanti: nome, cognome, clienteEsistente, email, clienteType, veicolo, descrizione, categoria ✓?
+Se manca qualcosa, chiedilo prima di chiudere. Solo quando hai TUTTO emetti il blocco.
 
 QUANDO HAI TUTTI I CAMPI OBBLIGATORI:
 Scrivi un messaggio di conferma naturale (es. "Perfetto [nome], ho tutto quello che mi serve. Ti ricontatteremo a [email] entro poche ore!") poi aggiungi ESATTAMENTE questo blocco JSON alla fine, senza modifiche al formato:
 
 <LEAD_DATA>
-{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","clienteEsistente":"SI","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi","vin":"..."}
+{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","clienteEsistente":"SI","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi","vin":"...","librettoRicevuto":"SI"}
 </LEAD_DATA>
 
 Valori validi per categoriaProdotto: "Ricambi" | "Accessori" | "Lubrificanti" | "Vernici"
 Valori validi per clienteType: "PRIVATO" | "AZIENDA"
 Per vin: inserisci il numero di telaio se raccolto, altrimenti stringa vuota ""
 Per clienteEsistente: "SI" se ha già acquistato da Magnus, "NO" se è la prima volta
-Non includere il blocco <LEAD_DATA> finché non hai TUTTI i campi obbligatori (incluso VIN se categoria è Ricambi o Accessori).`;
+Per librettoRicevuto: "SI" se l'utente ha inviato la foto/scansione, "NO" altrimenti (o "" per categorie che non lo richiedono)
+Non includere il blocco <LEAD_DATA> finché non hai TUTTI i campi obbligatori.`;
 
 // ─── Verifica webhook (GET) ───────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
@@ -94,16 +102,23 @@ export async function POST(request: NextRequest) {
     const messageType = message.type;
     const businessPhoneNumberId = value.metadata?.phone_number_id;
 
-    if (messageType !== "text") {
+    let incomingText = "";
+
+    if (messageType === "text") {
+      incomingText = message.text?.body ?? "";
+    } else if (messageType === "image" || messageType === "document") {
+      // L'utente ha inviato una foto o scansione del libretto
+      incomingText = "[LIBRETTO RICEVUTO - l'utente ha inviato la foto/scansione del libretto del veicolo]";
+      console.log(`[WA] Immagine/documento ricevuto da ${from} (libretto)`);
+    } else {
       await sendWhatsAppMessage(
         businessPhoneNumberId,
         from,
-        "Al momento gestisco solo messaggi di testo. Scrivi la tua richiesta e ti rispondo subito!"
+        "Gestisco testo e foto. Scrivi la tua richiesta o invia la foto del libretto! 📄"
       );
       return NextResponse.json({ status: "ok" }, { status: 200 });
     }
 
-    const incomingText = message.text?.body ?? "";
     console.log(`[WA] Messaggio da ${from}: "${incomingText}"`);
 
     // Comando reset conversazione
@@ -162,10 +177,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Delay random 3-5s per simulare comportamento umano
-    const delay = 3000 + Math.floor(Math.random() * 2000);
-    await new Promise((resolve) => setTimeout(resolve, delay));
-
     await sendWhatsAppMessage(businessPhoneNumberId, from, replyText);
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (error) {
@@ -184,6 +195,7 @@ async function createLeadFromWA(data: WaLeadData, phone: string): Promise<void> 
     categoriaProdotto: data.categoriaProdotto,
     brandProdotto: data.brandProdotto || undefined,
     vinCode: data.vin || undefined,
+    noteAggiuntive: data.librettoRicevuto === "SI" ? "📄 Libretto inviato via WhatsApp" : undefined,
   };
 
   const contactInfo: ContactInfo = {

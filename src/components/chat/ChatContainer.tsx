@@ -133,13 +133,8 @@ export default function ChatContainer() {
         const step = steps[idx]!;
         const extracted = answers[step.id];
 
-        // Se il campo è stato estratto automaticamente, saltalo con messaggio di conferma
+        // Se il campo è stato estratto automaticamente, saltalo silenziosamente
         if (extracted && EXTRACTABLE_FIELDS.includes(step.id as typeof EXTRACTABLE_FIELDS[number])) {
-          const label = EXTRACT_LABELS[step.id] ?? step.id;
-          messages = [
-            ...messages,
-            agentMsg(`Ho rilevato dalla descrizione — **${label}: ${extracted}**. Passo avanti!`),
-          ];
           idx++;
         } else {
           break;
