@@ -106,6 +106,13 @@ export async function POST(request: NextRequest) {
     const incomingText = message.text?.body ?? "";
     console.log(`[WA] Messaggio da ${from}: "${incomingText}"`);
 
+    // Comando reset conversazione
+    if (incomingText.trim().toUpperCase() === "MAGNUS RESET") {
+      await prisma.waConversation.deleteMany({ where: { phone: from } });
+      await sendWhatsAppMessage(businessPhoneNumberId, from, "Conversazione resettata. Ciao! 👋 Come posso aiutarti?");
+      return NextResponse.json({ status: "ok" }, { status: 200 });
+    }
+
     // Carica o crea la conversazione per questo numero
     const conv = await prisma.waConversation.findUnique({ where: { phone: from } });
 
