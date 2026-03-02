@@ -102,3 +102,15 @@ model WaMessage {
   @@index([phone, processed])
   @@index([createdAt])
 }
+
+model WaConversation {
+  id         String   @id @default(cuid())
+  phone      String   @unique
+  messages   Json     @default("[]")
+  raccolto   Json     @default("{}")
+  completato Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([phone])
+}
