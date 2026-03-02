@@ -15,6 +15,7 @@ export type CategoriaProdotto =
 
 export interface MagnusLeadData {
   clienteType: ClienteType;
+  clienteEsistente?: "SI" | "NO";
   // Dati azienda (opzionali per privati)
   ragioneSociale?: string;
   partitaIVA?: string;

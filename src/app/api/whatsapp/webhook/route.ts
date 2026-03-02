@@ -15,6 +15,7 @@ interface WaLeadData {
   cognome?: string;
   email: string;
   clienteType: "PRIVATO" | "AZIENDA";
+  clienteEsistente?: "SI" | "NO";
   ragioneSociale?: string;
   brandProdotto?: string;
   descrizioneProdotto: string;
@@ -29,6 +30,7 @@ Il tuo obiettivo è raccogliere TUTTE le informazioni necessarie per compilare l
 CAMPI OBBLIGATORI da raccogliere (uno alla volta, in modo naturale):
 - nome del cliente
 - cognome
+- se ha già acquistato da Magnus in passato (sì o no)
 - email (per ricontattarlo)
 - tipo cliente: privato o azienda (se azienda: ragione sociale)
 - marca e modello del veicolo (es. "Ford F-150 2019")
@@ -48,12 +50,13 @@ QUANDO HAI TUTTI I CAMPI OBBLIGATORI:
 Scrivi un messaggio di conferma naturale (es. "Perfetto [nome], ho tutto quello che mi serve. Ti ricontatteremo a [email] entro poche ore!") poi aggiungi ESATTAMENTE questo blocco JSON alla fine, senza modifiche al formato:
 
 <LEAD_DATA>
-{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi","vin":"..."}
+{"nome":"...","cognome":"...","email":"...","clienteType":"PRIVATO","clienteEsistente":"SI","ragioneSociale":"","brandProdotto":"...","descrizioneProdotto":"...","categoriaProdotto":"Ricambi","vin":"..."}
 </LEAD_DATA>
 
 Valori validi per categoriaProdotto: "Ricambi" | "Accessori" | "Lubrificanti" | "Vernici"
 Valori validi per clienteType: "PRIVATO" | "AZIENDA"
 Per vin: inserisci il numero di telaio se raccolto, altrimenti stringa vuota ""
+Per clienteEsistente: "SI" se ha già acquistato da Magnus, "NO" se è la prima volta
 Non includere il blocco <LEAD_DATA> finché non hai TUTTI i campi obbligatori (incluso VIN se categoria è Ricambi o Accessori).`;
 
 // ─── Verifica webhook (GET) ───────────────────────────────────────────────────
@@ -168,6 +171,7 @@ export async function POST(request: NextRequest) {
 async function createLeadFromWA(data: WaLeadData, phone: string): Promise<void> {
   const leadData: MagnusLeadData = {
     clienteType: data.clienteType,
+    clienteEsistente: data.clienteEsistente || undefined,
     ragioneSociale: data.ragioneSociale || undefined,
     descrizioneProdotto: data.descrizioneProdotto,
     categoriaProdotto: data.categoriaProdotto,

@@ -24,21 +24,17 @@ function userMsg(content: string): ChatMessage {
 }
 
 const WELCOME =
-  "Ciao! Sono l'assistente di Magnus SRL. Ti aiuto a inviare la tua richiesta di ricambi, accessori o lubrificanti in pochi passi.";
+  "Ciao! 👋 Benvenuto da Magnus SRL, specialisti in ricambi e accessori per veicoli americani. Sono qui per raccogliere la tua richiesta e passarla al team commerciale.";
 
 const TYPE_SELECTION_MSG =
-  "Prima di iniziare: stai facendo questa richiesta come privato o come azienda?";
+  "Prima di iniziare: sei un privato o rappresenti un'azienda?";
 
-const PRIVATE_WARNING = `Gentile cliente, Magnus SRL serve esclusivamente aziende. In quanto privato, ti informiamo che la gestione della tua richiesta non è garantita.
+const PRIVATE_WARNING = `Certo! Ti avviso che serviamo principalmente clienti business, quindi le richieste aziendali hanno priorità. Puoi comunque inviare la tua — tieni presente che l'ordine minimo è di €300.
 
-Per aumentare le probabilità di essere seguito, ti invitiamo a compilare il form nel modo più dettagliato possibile: maggiore sarà la precisione della tua richiesta, maggiori saranno le possibilità di ricevere assistenza.
-
-Ti ricordiamo inoltre che, per motivi di gestione operativa, non è possibile evadere ordini inferiori a €300. Se il tuo ordine attuale non raggiunge questa soglia, valuta l'acquisto di un tagliando o di accessori utili per raggiungere il valore minimo.
-
-Puoi comunque procedere compilando la richiesta qui sotto.`;
+Se ci stai, compila pure la richiesta nel modo più dettagliato possibile! 👇`;
 
 const CONTACT_INFO_MSG =
-  "Ottimo! Quasi finito. Per poter gestire la tua richiesta ho bisogno di alcuni dati di contatto.";
+  "Quasi finito! 🙌 Ho bisogno dei tuoi dati di contatto per farti ricontattare dal team.";
 
 const CONSENT_MSG =
   "Perfetto! Prima di inviare la tua richiesta, ho bisogno del tuo consenso al trattamento dei dati inseriti ai sensi del GDPR.";
@@ -142,7 +138,7 @@ export default function ChatContainer() {
           const label = EXTRACT_LABELS[step.id] ?? step.id;
           messages = [
             ...messages,
-            agentMsg(`✅ Ho rilevato dalla tua descrizione — ${label}: **${extracted}**. Passo alla prossima domanda.`),
+            agentMsg(`Ho rilevato dalla descrizione — **${label}: ${extracted}**. Passo avanti!`),
           ];
           idx++;
         } else {
