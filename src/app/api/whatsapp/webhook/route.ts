@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 // ─── Verifica webhook (GET) — richiesta da Meta al momento della configurazione ───
 export async function GET(request: NextRequest) {
@@ -65,59 +70,37 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── Genera risposta automatica ───────────────────────────────────────────────
+// ─── Genera risposta con Claude AI ────────────────────────────────────────────
 async function generateReply(text: string, _from: string): Promise<string> {
-  const lowerText = text.toLowerCase();
+  const formUrl = `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica`;
 
-  // Risposta base — verrà sostituita con Claude AI nella fase successiva
-  if (
-    lowerText.includes("ricambi") ||
-    lowerText.includes("accessori") ||
-    lowerText.includes("pezzo") ||
-    lowerText.includes("parte")
-  ) {
-    return (
-      "Ciao! 👋 Sono il bot di *Magnus SRL*.\n\n" +
-      "Hai bisogno di ricambi o accessori per veicoli americani? " +
-      "Compilare il form sul nostro sito è il modo più veloce per ricevere un preventivo: " +
-      `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica\n\n` +
-      "Un nostro commerciale ti risponderà entro poche ore. 🚗"
-    );
-  }
+  const response = await anthropic.messages.create({
+    model: "claude-opus-4-6",
+    max_tokens: 1024,
+    thinking: { type: "adaptive" },
+    system: `Sei il bot WhatsApp di *Magnus SRL*, azienda italiana specializzata in ricambi, accessori, lubrificanti e vernici per veicoli americani (pickup, SUV, muscle car: Ford, Dodge, Chevrolet, RAM, Jeep, ecc.).
 
-  if (
-    lowerText.includes("ciao") ||
-    lowerText.includes("salve") ||
-    lowerText.includes("buongiorno") ||
-    lowerText.includes("buonasera")
-  ) {
-    return (
-      "Ciao! 👋 Sono il bot di *Magnus SRL*, specializzati in ricambi e accessori per veicoli americani.\n\n" +
-      "Come posso aiutarti? Scrivimi cosa stai cercando o visita il nostro form per una richiesta veloce: " +
-      `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica`
-    );
-  }
+Il tuo compito principale è indirizzare SUBITO il cliente a compilare il form di qualifica: ${formUrl}
 
-  if (
-    lowerText.includes("prezzo") ||
-    lowerText.includes("quanto costa") ||
-    lowerText.includes("preventivo") ||
-    lowerText.includes("offerta")
-  ) {
-    return (
-      "Per ricevere un preventivo preciso, compila il nostro form con i dettagli del veicolo e del pezzo che cerchi: " +
-      `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica\n\n` +
-      "Il nostro team ti risponderà con l'offerta migliore. 💬"
-    );
-  }
+Comportamento da seguire SEMPRE:
+1. Saluta brevemente e riconosci cosa sta cercando il cliente
+2. Spiega in UNA frase che siamo specializzati in veicoli americani
+3. Chiedi di compilare il form per ricevere un preventivo personalizzato: ${formUrl}
+4. Comunica che un commerciale risponde entro poche ore
 
-  // Risposta generica
+Regole:
+- Rispondi SEMPRE in italiano
+- Sii cordiale e diretto (massimo 3-4 frasi)
+- NON dare prezzi, disponibilità o dettagli tecnici: rimanda SEMPRE al form
+- Includi SEMPRE il link al form nella risposta
+- Usa emoji con moderazione (1-2 al massimo)`,
+    messages: [{ role: "user", content: text }],
+  });
+
+  const textBlock = response.content.find((block) => block.type === "text");
   return (
-    "Grazie per il messaggio! 🙏\n\n" +
-    "Sono il bot di *Magnus SRL*. Per ricambi, accessori, lubrificanti o vernici per veicoli americani, " +
-    "il modo più veloce è compilare il nostro form: " +
-    `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://gestione.aixum.it"}/qualifica\n\n` +
-    "Un commerciale ti contatterà al più presto."
+    textBlock?.text ??
+    `Grazie per il messaggio! 🙏 Per una risposta rapida, compila il nostro form: ${formUrl}`
   );
 }
 
