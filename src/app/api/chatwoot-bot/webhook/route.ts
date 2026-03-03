@@ -70,7 +70,14 @@ interface WaLeadData {
 }
 
 // ─── Ricezione eventi da Chatwoot Agent Bot (POST) ────────────────────────────
-export async function POST(request: NextRequest) {
+// DISABILITATO: tutta la logica è stata spostata in /api/chatwoot-events
+// che usa il webhook regolare Chatwoot (funziona per tutte le conversazioni)
+export async function POST(_request: NextRequest) {
+  return NextResponse.json({ status: "ok" }, { status: 200 });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _disabledPOST(request: NextRequest) {
   try {
     const body = await request.json();
 
@@ -291,3 +298,4 @@ function parseLeadData(text: string): { replyText: string; leadData: WaLeadData 
     return { replyText: text.trim(), leadData: null };
   }
 }
+// fine _disabledPOST
