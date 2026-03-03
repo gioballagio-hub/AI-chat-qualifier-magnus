@@ -5,6 +5,8 @@ import { getSessionFromCookies } from "@/lib/auth";
 const CHATWOOT_URL = process.env.CHATWOOT_URL ?? "";
 const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID ?? "1";
 const BOT_TOKEN = process.env.CHATWOOT_BOT_ACCESS_TOKEN ?? "";
+// Token utente completo — usato per letture (contact search, GET messages)
+const API_TOKEN = process.env.CHATWOOT_API_TOKEN || BOT_TOKEN;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -13,7 +15,7 @@ async function findChatwootConversationByPhone(phone: string): Promise<number | 
   try {
     const searchRes = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=%2B${phone}&page=1`,
-      { headers: { "api_access_token": BOT_TOKEN } }
+      { headers: { "api_access_token": API_TOKEN } }
     );
     if (!searchRes.ok) return null;
 
@@ -23,7 +25,7 @@ async function findChatwootConversationByPhone(phone: string): Promise<number | 
 
     const convRes = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contact.id}/conversations`,
-      { headers: { "api_access_token": BOT_TOKEN } }
+      { headers: { "api_access_token": API_TOKEN } }
     );
     if (!convRes.ok) return null;
 
@@ -42,7 +44,7 @@ async function fetchChatwootMessages(conversationId: number): Promise<ChatMessag
   try {
     const res = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-      { headers: { "api_access_token": BOT_TOKEN } }
+      { headers: { "api_access_token": API_TOKEN } }
     );
     if (!res.ok) return [];
 
