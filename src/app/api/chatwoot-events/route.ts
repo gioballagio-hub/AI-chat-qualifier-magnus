@@ -256,9 +256,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // ─── Cerca lead esistenti per questo numero (contatto già noto) ──────────
+    // ─── Carica conversazione dal DB (prima, per usare email come fallback) ──
+    const conv = await prisma.waConversation.findUnique({ where: { phone } });
+
+    // ─── Cerca lead esistenti: telefono normalizzato + email come fallback ────
+    // Normalizza il telefono: rimuovi tutto tranne le cifre, prova più varianti
+    const phoneDigits = phone.replace(/\D/g, "");
+    const phoneVariants = Array.from(
+      new Set(
+        [`+${phone}`, `+${phoneDigits}`, phone, phoneDigits]
+          .filter((v) => v.replace(/\D/g, "").length >= 8)
+      )
+    );
+    // Email salvata da una conversazione precedente completata
+    const prevEmail = (conv?.raccolto as { email?: string } | null)?.email ?? null;
+
     const existingLeads = await prisma.lead.findMany({
-      where: { telefono: `+${phone}`, deletedAt: null },
+      where: {
+        deletedAt: null,
+        OR: [
+          { telefono: { in: phoneVariants } },
+          ...(prevEmail ? [{ emailContatto: prevEmail }] : []),
+        ],
+      },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -269,8 +289,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // ─── Carica conversazione dal DB ─────────────────────────────────────────
-    const conv = await prisma.waConversation.findUnique({ where: { phone } });
+    console.log(`[Chatwoot Events] Lookup: variants=${phoneVariants.join("|")} | email=${prevEmail ?? "none"} | found=${existingLeads.length} lead(s)`);
 
     // ─── Gestione conversazione completata ───────────────────────────────────
     let shouldReset = false;
