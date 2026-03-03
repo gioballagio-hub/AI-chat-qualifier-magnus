@@ -22,32 +22,12 @@ export async function GET(
   const conv = await prisma.waConversation.findUnique({ where: { phone } });
   if (!conv) return NextResponse.json({ messages: [], hasConversation: false });
 
-  return NextResponse.json({ messages: conv.messages, hasConversation: true, completato: conv.completato });
-}
-
-// Trova la conversazione Chatwoot più recente per un numero di telefono
-async function findLatestConversation(telefono: string): Promise<number | null> {
-  const searchRes = await fetch(
-    `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${encodeURIComponent(telefono)}&page=1`,
-    { headers: { "api_access_token": BOT_TOKEN } }
-  );
-  if (!searchRes.ok) return null;
-
-  const searchData = await searchRes.json();
-  const contact = searchData.payload?.contacts?.[0];
-  if (!contact) return null;
-
-  const convsRes = await fetch(
-    `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contact.id}/conversations`,
-    { headers: { "api_access_token": BOT_TOKEN } }
-  );
-  if (!convsRes.ok) return null;
-
-  const convsData = await convsRes.json();
-  const conversations = convsData.payload;
-  if (!conversations?.length) return null;
-
-  return conversations[conversations.length - 1].id as number;
+  return NextResponse.json({
+    messages: conv.messages,
+    hasConversation: true,
+    completato: conv.completato,
+    hasDirectLink: !!conv.chatwootConversationId,
+  });
 }
 
 // POST — Invia testo e/o immagine al cliente via Chatwoot
@@ -62,15 +42,20 @@ export async function POST(
   const lead = await prisma.lead.findUnique({ where: { id }, select: { telefono: true } });
   if (!lead?.telefono) return NextResponse.json({ error: "Lead senza telefono" }, { status: 400 });
 
-  const conversationId = await findLatestConversation(lead.telefono);
-  if (!conversationId) return NextResponse.json({ error: "Conversazione Chatwoot non trovata" }, { status: 404 });
+  // Recupera il conversationId salvato dal bot
+  const phone = lead.telefono.replace(/^\+/, "");
+  const conv = await prisma.waConversation.findUnique({ where: { phone }, select: { chatwootConversationId: true } });
 
+  if (!conv?.chatwootConversationId) {
+    return NextResponse.json({ error: "Conversazione Chatwoot non trovata. Aspetta che il cliente mandi almeno un messaggio." }, { status: 404 });
+  }
+
+  const conversationId = conv.chatwootConversationId;
   const contentType = req.headers.get("content-type") ?? "";
   let cwBody: FormData | string;
   let cwHeaders: Record<string, string>;
 
   if (contentType.includes("multipart/form-data")) {
-    // Richiesta con allegato
     const incomingFormData = await req.formData();
     const message = (incomingFormData.get("message") as string | null) ?? "";
     const file = incomingFormData.get("file") as File | null;
@@ -88,7 +73,6 @@ export async function POST(
     cwBody = fd;
     cwHeaders = { "api_access_token": BOT_TOKEN };
   } else {
-    // Richiesta testo puro
     const { message } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: "Messaggio vuoto" }, { status: 400 });
 

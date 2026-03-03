@@ -104,13 +104,14 @@ model WaMessage {
 }
 
 model WaConversation {
-  id         String   @id @default(cuid())
-  phone      String   @unique
-  messages   Json     @default("[]")
-  raccolto   Json     @default("{}")
-  completato Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  phone                  String   @unique
+  messages               Json     @default("[]")
+  raccolto               Json     @default("{}")
+  completato             Boolean  @default(false)
+  chatwootConversationId Int?     // ID conversazione Chatwoot per invio messaggi dal pannello admin
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([phone])
 }

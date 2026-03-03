@@ -150,11 +150,11 @@ export async function POST(request: NextRequest) {
       // Crea il lead nel DB e notifica l'agenzia via email
       const lead = await createLeadFromWA(leadData, phone);
 
-      // Marca la conversazione come completata
+      // Marca la conversazione come completata (salva anche il conversationId di Chatwoot)
       await prisma.waConversation.upsert({
         where: { phone },
-        create: { phone, messages: history, raccolto: leadData as object, completato: true },
-        update: { messages: history, raccolto: leadData as object, completato: true },
+        create: { phone, messages: history, raccolto: leadData as object, completato: true, chatwootConversationId: conversationId },
+        update: { messages: history, raccolto: leadData as object, completato: true, chatwootConversationId: conversationId },
       });
 
       // ─── Nota privata agli agenti in Chatwoot ─────────────────────────────
@@ -182,11 +182,11 @@ export async function POST(request: NextRequest) {
 
       console.log(`[Chatwoot Bot] Lead creato per ${phone} ✓`);
     } else {
-      // Aggiorna storia conversazione
+      // Aggiorna storia conversazione (salva sempre il conversationId di Chatwoot)
       await prisma.waConversation.upsert({
         where: { phone },
-        create: { phone, messages: history, raccolto: {}, completato: false },
-        update: { messages: history },
+        create: { phone, messages: history, raccolto: {}, completato: false, chatwootConversationId: conversationId },
+        update: { messages: history, chatwootConversationId: conversationId },
       });
     }
 
