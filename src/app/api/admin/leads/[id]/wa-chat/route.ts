@@ -9,7 +9,6 @@ const BOT_TOKEN = process.env.CHATWOOT_BOT_ACCESS_TOKEN ?? "";
 // ─── Cerca la conversazione Chatwoot per numero di telefono ──────────────────
 async function findChatwootConversationByPhone(phone: string): Promise<number | null> {
   try {
-    // Cerca il contatto per telefono (Chatwoot salva il numero con +)
     const searchRes = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=%2B${phone}&page=1`,
       { headers: { "api_access_token": BOT_TOKEN } }
@@ -20,7 +19,6 @@ async function findChatwootConversationByPhone(phone: string): Promise<number | 
     const contact = searchData.payload?.[0];
     if (!contact?.id) return null;
 
-    // Recupera le conversazioni del contatto
     const convRes = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contact.id}/conversations`,
       { headers: { "api_access_token": BOT_TOKEN } }
@@ -31,7 +29,6 @@ async function findChatwootConversationByPhone(phone: string): Promise<number | 
     const conversations: Array<{ id: number }> = convData.payload ?? [];
     if (!conversations.length) return null;
 
-    // Restituisce l'ID della conversazione più recente
     return conversations.sort((a, b) => b.id - a.id)[0].id;
   } catch {
     return null;
@@ -48,15 +45,19 @@ export async function GET(
 
   const { id } = await params;
   const lead = await prisma.lead.findUnique({ where: { id }, select: { telefono: true } });
-  if (!lead?.telefono) return NextResponse.json({ messages: [], hasConversation: false });
+
+  // Nessun telefono → sezione nascosta
+  if (!lead?.telefono) return NextResponse.json({ messages: [], hasPhone: false });
 
   const phone = lead.telefono.replace(/^\+/, "");
   const conv = await prisma.waConversation.findUnique({ where: { phone } });
-  if (!conv) return NextResponse.json({ messages: [], hasConversation: false });
+
+  // Telefono presente ma nessuna conversazione ancora → sezione visibile, messaggi vuoti
+  if (!conv) return NextResponse.json({ messages: [], hasPhone: true, completato: false, hasDirectLink: false });
 
   return NextResponse.json({
     messages: conv.messages,
-    hasConversation: true,
+    hasPhone: true,
     completato: conv.completato,
     hasDirectLink: !!conv.chatwootConversationId,
   });
@@ -136,7 +137,7 @@ export async function POST(
   return NextResponse.json({ success: true });
 }
 
-// DELETE — Resetta la conversazione WA per questo lead (equivalente a MAGNUS RESET)
+// DELETE — Resetta la conversazione WA e riapre quella Chatwoot per far ripartire il bot
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -149,8 +150,32 @@ export async function DELETE(
   if (!lead?.telefono) return NextResponse.json({ error: "Lead senza telefono" }, { status: 400 });
 
   const phone = lead.telefono.replace(/^\+/, "");
-  await prisma.waConversation.deleteMany({ where: { phone } });
 
+  // Recupera il chatwootConversationId prima di eliminare
+  const existing = await prisma.waConversation.findUnique({
+    where: { phone },
+    select: { chatwootConversationId: true },
+  });
+
+  await prisma.waConversation.deleteMany({ where: { phone } });
   console.log(`[wa-chat] Conversazione resettata per ${phone}`);
+
+  // Riapre la conversazione Chatwoot (se disponibile) così il bot riceve il prossimo messaggio
+  if (existing?.chatwootConversationId && CHATWOOT_URL && BOT_TOKEN) {
+    try {
+      await fetch(
+        `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${existing.chatwootConversationId}/toggle_status`,
+        {
+          method: "POST",
+          headers: { "api_access_token": BOT_TOKEN, "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "open" }),
+        }
+      );
+      console.log(`[wa-chat] Conversazione Chatwoot ${existing.chatwootConversationId} riaperta`);
+    } catch {
+      // Non bloccante — il reset del DB è già avvenuto
+    }
+  }
+
   return NextResponse.json({ success: true });
 }

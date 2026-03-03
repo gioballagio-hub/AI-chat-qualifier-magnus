@@ -7,7 +7,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export default function WaChatSection({ leadId }: { leadId: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [hasConversation, setHasConversation] = useState<boolean | null>(null);
+  const [hasPhone, setHasPhone] = useState<boolean | null>(null);
   const [completato, setCompletato] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
   const [input, setInput] = useState("");
@@ -26,18 +26,18 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
       if (!res.ok) return;
       const data = await res.json();
       setMessages(data.messages ?? []);
-      setHasConversation(data.hasConversation);
+      setHasPhone(data.hasPhone ?? false);
       setCompletato(data.completato ?? false);
     } catch {}
   }, [leadId]);
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 15000);
+    const interval = setInterval(fetchMessages, 5000); // aggiorna ogni 5 secondi
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
-  // Scrolla in fondo solo quando arrivano nuovi messaggi (non al caricamento iniziale)
+  // Scrolla in fondo solo quando arrivano nuovi messaggi
   useEffect(() => {
     if (!isOpen) return;
     if (messages.length > prevCountRef.current) {
@@ -94,14 +94,14 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
   };
 
   const resetConversation = async () => {
-    if (!confirm("Resettare la conversazione? Tutti i messaggi WA verranno cancellati e il bot potrà ripartire da zero.")) return;
+    if (!confirm("Resettare la conversazione? Il bot potrà ricominciare da capo al prossimo messaggio del cliente.")) return;
     setResetting(true);
     setError(null);
     try {
       const res = await fetch(`/api/admin/leads/${leadId}/wa-chat`, { method: "DELETE" });
       if (res.ok) {
+        // Resetta solo i messaggi — la sezione rimane visibile
         setMessages([]);
-        setHasConversation(false);
         setCompletato(false);
         prevCountRef.current = 0;
       } else {
@@ -114,7 +114,9 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
     }
   };
 
-  if (hasConversation === null || !hasConversation) return null;
+  // Nasconde la sezione solo se il lead non ha un numero di telefono
+  if (hasPhone === null) return null; // caricamento iniziale
+  if (hasPhone === false) return null; // nessun telefono salvato
 
   return (
     <Card>
@@ -128,16 +130,14 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
               </span>
             )}
             {messages.length > 0 && (
-              <span className="text-xs text-gray-400">
-                {messages.length} messaggi
-              </span>
+              <span className="text-xs text-gray-400">{messages.length} messaggi</span>
             )}
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={resetConversation}
               disabled={resetting}
-              title="Resetta conversazione (equivalente a MAGNUS RESET)"
+              title="Resetta conversazione — il bot riparte dal prossimo messaggio del cliente"
               className="text-xs text-red-400 hover:text-red-600 cursor-pointer transition-colors disabled:opacity-40"
             >
               {resetting ? "…" : "🔄 Reset"}
@@ -154,28 +154,39 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
 
       {isOpen && (
         <CardBody className="p-0">
-          {/* Messaggi */}
+          {/* Area messaggi */}
           <div className="h-72 overflow-y-auto px-4 py-3 space-y-2 bg-gray-50">
-            {messages.length > 3 && (
-              <p className="text-center text-xs text-gray-400 pb-1">↑ scorri per vedere i messaggi precedenti</p>
-            )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "assistant" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm leading-snug whitespace-pre-wrap ${
-                    msg.role === "assistant"
-                      ? "bg-blue-600 text-white rounded-br-sm"
-                      : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"
-                  }`}
-                >
-                  {msg.content}
-                </div>
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-sm text-gray-400 text-center">
+                  In attesa del primo messaggio WhatsApp…<br />
+                  <span className="text-xs">La chat si aggiornerà automaticamente</span>
+                </p>
               </div>
-            ))}
+            ) : (
+              <>
+                {messages.length > 3 && (
+                  <p className="text-center text-xs text-gray-400 pb-1">↑ scorri per vedere i messaggi precedenti</p>
+                )}
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "assistant" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm leading-snug whitespace-pre-wrap ${
+                        msg.role === "assistant"
+                          ? "bg-blue-600 text-white rounded-br-sm"
+                          : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Preview immagine selezionata */}
+          {/* Preview file selezionato */}
           {filePreview && (
             <div className="px-3 pt-2 flex items-center gap-2">
               <img src={filePreview} alt="preview" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
