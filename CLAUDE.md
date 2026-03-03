@@ -12,7 +12,9 @@
 3. **Dopo ogni modifica: dire cosa è stato fatto**
 4. **Non toccare mai codice che non è strettamente necessario**
 5. **Chiedere sempre il permesso prima di modificare file esistenti**
-6. Flusso corretto: spiega → modifica solo il necessario → salva → avvisa → utente testa → ok → chiedi push → commit + push
+6. **Dopo ogni modifica/fix importante: chiedere il permesso e dire cosa si aggiornerebbe nel CLAUDE.md prima di aggiornarlo**
+7. **Avvisare l'utente quando ci si sta avvicinando al limite di contesto della conversazione**, così può aprire una nuova chat in anticipo
+8. Flusso corretto: spiega → modifica solo il necessario → salva → avvisa → utente testa → ok → chiedi push → commit + push
 
 ---
 
@@ -40,7 +42,8 @@ src/
 │   │   ├── leads/                     # Form web → crea lead
 │   │   ├── auth/                      # login, logout, me
 │   │   ├── whatsapp/webhook/          # Ricezione messaggi WhatsApp (Meta Cloud API)
-│   │   ├── chatwoot-bot/webhook/      # Ricezione eventi bot Chatwoot
+│   │   ├── chatwoot-bot/webhook/      # ⛔ DISABILITATO — restituisce 200 immediatamente (era Agent Bot, solo "pending")
+│   │   ├── chatwoot-events/           # ✅ Webhook regolare Chatwoot (fires per TUTTI gli stati) — gestisce MAGNUS RESET + bot AI
 │   │   ├── inbound/email/             # Webhook email inbound (Postmark)
 │   │   └── admin/
 │   │       ├── leads/                 # CRUD lead + export
@@ -70,7 +73,7 @@ src/
 │   ├── admin/
 │   │   ├── CommunicationsPanel.tsx    # Tab switcher WhatsApp + Email (nella scheda lead)
 │   │   ├── WaChatSection.tsx          # Chat WhatsApp (polling 5s, legge da Chatwoot API)
-│   │   ├── FollowUpEmailSection.tsx   # Compose email follow-up (integrata in CommunicationsPanel)
+│   │   ├── FollowUpEmailSection.tsx   # ⚠️ NON più usato dalla pagina lead — logica integrata come EmailSection inline in CommunicationsPanel
 │   │   ├── NoteSection.tsx            # Note lead
 │   │   ├── ActivitySection.tsx        # Timeline attività
 │   │   ├── LeadTable.tsx             # Tabella lista lead
@@ -177,19 +180,29 @@ notificheEmailCommerciale (bool), reminderAbilitato (bool), reminderGiorni (int)
 - Phone Number ID: `1025727480621290`
 - Business Account ID: `1248420933352614`
 - Versione API: v21.0
-- **Webhook URL**: `https://gestione.aixum.it/api/whatsapp/webhook`
-- **Flusso**: Meta → Chatwoot (inbox) → chatwoot-bot/webhook → WaConversation DB
+- **Webhook URL Meta**: punta a Chatwoot (Chatwoot gestisce la ricezione nativa da Meta)
+- **Webhook nostro** (fallback/legacy): `https://gestione.aixum.it/api/whatsapp/webhook` — non usato attivamente, Chatwoot ha preso il controllo
+- **Flusso**: Meta → Chatwoot (inbox) → `POST /api/chatwoot-events` (regular webhook) → WaConversation DB
 
 ### 2. Chatwoot (self-hosted su Railway)
 - URL: `https://chatwoot-production-7a9b.up.railway.app`
 - Account ID: 1
 - **Come funziona**:
   - Chatwoot riceve i messaggi WhatsApp da Meta
-  - Chatwoot inoltra al bot webhook: `/api/chatwoot-bot/webhook`
-  - Il bot processa, risponde tramite `sendChatwootMessage()`
+  - Chatwoot inoltra al webhook **regolare**: `/api/chatwoot-events` (fires per TUTTI gli stati conversazione)
+  - Il bot processa con Claude, risponde tramite `sendChatwootMessage()`
   - Il pannello admin legge i messaggi **direttamente dall'API Chatwoot** (non dal DB)
-- **Token**: `CHATWOOT_BOT_ACCESS_TOKEN` (Agent Bot token, permessi limitati)
-- **⚠️ PROBLEMA NOTO**: Il BOT_TOKEN potrebbe non avere permessi per leggere messaggi via API. Se il pannello WA non mostra messaggi, potrebbe servire un token utente completo (`CHATWOOT_API_TOKEN`).
+- **Token Bot**: `CHATWOOT_BOT_ACCESS_TOKEN` (Agent Bot token, solo per inviare messaggi)
+- **Token Admin**: `CHATWOOT_API_TOKEN` (token utente completo, per leggere messaggi e cercare contatti)
+- **⚠️ LEZIONE APPRESA — Agent Bot vs Regular Webhook**:
+  - `chatwoot-bot/webhook` (Agent Bot) → viene chiamato **solo** per conversazioni in stato "pending"
+  - Appena un agente umano tocca la conversazione (diventa "open"), il bot smette di ricevere eventi
+  - `chatwoot-events` (Regular Webhook) → viene chiamato per **tutti** gli stati e **tutte** le conversazioni
+  - **Soluzione**: usare sempre il webhook regolare per la logica bot, mai l'Agent Bot
+- **Configurazione Chatwoot**:
+  - Impostazioni → Integrazioni → Webhook → URL: `https://gestione.aixum.it/api/chatwoot-events`
+  - Subscribed to: `Message Created`
+  - Agent Bot configurato sull'inbox ma relativo webhook (`chatwoot-bot/webhook`) è disabilitato
 
 ### 3. Email (Resend via SMTP)
 - Provider: **Resend** (`smtp.resend.com:465`)
@@ -231,7 +244,8 @@ notificheEmailCommerciale (bool), reminderAbilitato (bool), reminderGiorni (int)
 | `WHATSAPP_VERIFY_TOKEN` | Token verifica webhook Meta |
 | `CHATWOOT_URL` | URL Chatwoot self-hosted Railway |
 | `CHATWOOT_ACCOUNT_ID` | Account ID Chatwoot (= 1) |
-| `CHATWOOT_BOT_ACCESS_TOKEN` | Agent Bot token Chatwoot |
+| `CHATWOOT_BOT_ACCESS_TOKEN` | Agent Bot token Chatwoot (solo per inviare messaggi) |
+| `CHATWOOT_API_TOKEN` | Token utente completo Chatwoot (lettura messaggi + ricerca contatti nel pannello admin) |
 | `NEXT_PUBLIC_CHATWOOT_URL` | URL Chatwoot (pubblico, per link frontend) |
 | `SMTP_HOST` | smtp.resend.com |
 | `SMTP_PORT` | 465 |
@@ -267,10 +281,19 @@ Cliente → Chat guidata (AZIENDA_STEPS / PRIVATO_STEPS)
   → after(): sendCustomerEmail + sendAgencyEmail + dispatchWebhook
 ```
 
-### WhatsApp (via Chatwoot)
+### WhatsApp (via Chatwoot + Regular Webhook)
 ```
 Cliente WhatsApp → Meta Cloud API → Chatwoot (inbox)
-  → POST /api/chatwoot-bot/webhook (Agent Bot)
+  → POST /api/chatwoot-events (Regular Webhook — fires per TUTTI gli stati)
+  → Filtra: solo event="message_created", message_type="incoming", non private
+  → Estrae phone da body.sender?.phone_number ?? body.conversation?.meta?.sender?.phone_number
+
+  [Se messaggio = "MAGNUS RESET"]
+  → Cancella WaConversation dal DB
+  → sendChatwootMessage("✅ Conversazione resettata...")
+  → return
+
+  [Altrimenti — flusso bot AI]
   → Carica WaConversation (phone, senza +)
   → Se completato → silenzio
   → Aggiunge messaggio a history → Claude Opus 4.6
@@ -278,8 +301,12 @@ Cliente WhatsApp → Meta Cloud API → Chatwoot (inbox)
       → createLeadFromWA() → Lead DB + sendAgencyEmail()
       → WaConversation.completato = true + chatwootConversationId
       → sendPrivateNote() con riepilogo lead
-  → Altrimenti → salva history + chatwootConversationId + risponde
+  → Altrimenti → salva history + upsert chatwootConversationId + risponde
   → sendChatwootMessage() per risposta cliente
+
+⛔ chatwoot-bot/webhook: DISABILITATO (restituisce 200 senza fare nulla)
+   Motivo: Agent Bot fires solo per conversazioni "pending", non funziona dopo che
+   un agente tocca la chat (stato → "open"). Regular webhook non ha questo limite.
 ```
 
 ### Email Inbound (Postmark)
@@ -295,13 +322,15 @@ Email cliente → MX Magnus → Postmark
 GET /api/admin/leads/[id]/wa-chat
   1. Legge lead.telefono → phone (senza +)
   2. Cerca WaConversation in DB → chatwootConversationId
-  3. Se ID non trovato → cerca su Chatwoot API (contact search)
-  4. Se trovato → fetchChatwootMessages() direttamente da Chatwoot API
+  3. Se ID non trovato → cerca su Chatwoot API (contact search) con CHATWOOT_API_TOKEN
+  4. Se trovato → fetchChatwootMessages() direttamente da Chatwoot API con CHATWOOT_API_TOKEN
   5. Fallback → messaggi DB WaConversation
   → Restituisce: messages, hasPhone, completato
+  ⚠️ Le operazioni GET usano CHATWOOT_API_TOKEN (permessi completi)
+  ⚠️ Il POST usa CHATWOOT_BOT_ACCESS_TOKEN (solo invio messaggi)
 
-POST /api/admin/leads/[id]/wa-chat → invia via Chatwoot API
-DELETE /api/admin/leads/[id]/wa-chat → reset WaConversation + toggle_status Chatwoot
+POST /api/admin/leads/[id]/wa-chat → invia via Chatwoot API (BOT_TOKEN)
+DELETE /api/admin/leads/[id]/wa-chat → reset WaConversation + toggle_status Chatwoot (MAGNUS RESET da admin)
 ```
 
 ---
@@ -336,10 +365,16 @@ Default tab: WhatsApp se ha telefono, Email altrimenti.
 
 ## ⚠️ PROBLEMI NOTI / STATO ATTUALE
 
-### Chat WhatsApp pannello admin
-- **Stato**: la route GET ora legge direttamente da Chatwoot API (non dal DB)
-- **Possibile problema**: `CHATWOOT_BOT_ACCESS_TOKEN` potrebbe non avere permessi per `GET /conversations/{id}/messages` e `GET /contacts/search` → se il pannello mostra ancora niente, aggiungere `CHATWOOT_API_TOKEN` (token utente con permessi completi da Chatwoot profilo → Access Token)
-- **MAGNUS RESET da WhatsApp**: funziona solo se Chatwoot inoltra i messaggi al bot webhook. Dopo un reset, il bot deve ricevere almeno un nuovo messaggio per ricominciare.
+### ✅ RISOLTO — Chat WhatsApp pannello admin non mostrava messaggi
+- **Problema**: `CHATWOOT_BOT_ACCESS_TOKEN` (Agent Bot token) non ha permessi per leggere messaggi via API Chatwoot (`GET /conversations/{id}/messages`, `GET /contacts/search`)
+- **Soluzione**: Aggiunto `CHATWOOT_API_TOKEN` (token utente completo, da Chatwoot → Profilo → Access Token) su Vercel. La route `wa-chat/route.ts` ora usa questo token per tutte le operazioni di lettura (GET)
+- **Stato attuale**: ✅ Funzionante
+
+### ✅ RISOLTO — Bot non rispondeva dopo MAGNUS RESET / conversazione "open"
+- **Problema**: Il webhook `chatwoot-bot/webhook` (Agent Bot) viene chiamato da Chatwoot **solo** per conversazioni in stato "pending". Non appena un agente umano interagisce con la chat (o la conversazione passa a "open"), il bot smette di ricevere eventi → nessuna risposta AI
+- **Tentativo fallito**: toggle_status a "pending" via API dopo MAGNUS RESET — non sufficiente o non funzionante
+- **Soluzione**: Creato nuovo endpoint `POST /api/chatwoot-events` che usa il **webhook regolare** di Chatwoot (non l'Agent Bot). Il webhook regolare fires per **tutti** gli stati e tutte le conversazioni. Tutta la logica AI è stata spostata qui. `chatwoot-bot/webhook` disabilitato per evitare duplicati
+- **Stato attuale**: ✅ Funzionante — bot risponde correttamente, MAGNUS RESET funziona da WhatsApp e da admin panel
 
 ### Email spam
 - SPF aggiunto su Register.it ✅
