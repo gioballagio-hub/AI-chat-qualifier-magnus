@@ -12,6 +12,7 @@ import { useIsAdmin } from "@/lib/session-context";
 import NoteSection from "@/components/admin/NoteSection";
 import ActivitySection from "@/components/admin/ActivitySection";
 import CommunicationsPanel from "@/components/admin/CommunicationsPanel";
+import ContactHistoryCard from "@/components/admin/ContactHistoryCard";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -660,6 +661,9 @@ export default function LeadDetailPage() {
               hasTelefono={!!lead.telefono}
             />
           )}
+
+          {/* Storico richieste precedenti dello stesso contatto */}
+          <ContactHistoryCard leadId={lead.id} />
 
         </div>
 
