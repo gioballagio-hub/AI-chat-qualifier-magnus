@@ -12,6 +12,7 @@ import { useIsAdmin } from "@/lib/session-context";
 import NoteSection from "@/components/admin/NoteSection";
 import ActivitySection from "@/components/admin/ActivitySection";
 import FollowUpEmailSection from "@/components/admin/FollowUpEmailSection";
+import WaChatSection from "@/components/admin/WaChatSection";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -659,6 +660,9 @@ export default function LeadDetailPage() {
               missingFields={lead.missingFields}
             />
           )}
+
+          {/* Chat WhatsApp — visibile solo se il lead ha una conversazione WA */}
+          <WaChatSection leadId={lead.id} />
 
         </div>
 
