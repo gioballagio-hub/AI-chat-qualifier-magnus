@@ -75,18 +75,24 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Log diagnostico per capire il formato del payload (utile per debug nuovi contatti)
+    console.log(`[Chatwoot Events] RAW event=${body.event} message_type=${JSON.stringify(body.message_type)} private=${body.private} conv=${body.conversation?.id} sender_phone=${body.sender?.phone_number} meta_phone=${body.conversation?.meta?.sender?.phone_number}`);
+
     // Solo eventi message_created
     if (body.event !== "message_created") return NextResponse.json({ ok: true });
 
     // Solo messaggi in arrivo dal cliente
-    if (body.message_type !== "incoming") return NextResponse.json({ ok: true });
+    // Chatwoot può inviare message_type come stringa ("incoming") o numero (0)
+    const isIncoming = body.message_type === "incoming" || body.message_type === 0;
+    if (!isIncoming) return NextResponse.json({ ok: true });
     if (body.private) return NextResponse.json({ ok: true });
 
     const conversationId: number = body.conversation?.id;
-    // Il numero di telefono può essere in due posti a seconda della versione Chatwoot
+    // Il numero di telefono può essere in più posti a seconda della versione Chatwoot e del tipo di contatto
     const phoneRaw: string =
       body.sender?.phone_number ??
       body.conversation?.meta?.sender?.phone_number ??
+      body.meta?.sender?.phone_number ??
       "";
     const phone = phoneRaw.replace(/^\+/, "");
     const attachments: unknown[] = body.attachments ?? [];
