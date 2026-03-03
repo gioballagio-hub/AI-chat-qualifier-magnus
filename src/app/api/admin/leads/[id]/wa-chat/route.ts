@@ -6,7 +6,9 @@ const CHATWOOT_URL = process.env.CHATWOOT_URL ?? "";
 const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID ?? "1";
 const BOT_TOKEN = process.env.CHATWOOT_BOT_ACCESS_TOKEN ?? "";
 
-// ─── Cerca la conversazione Chatwoot per numero di telefono ──────────────────
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+// ─── Cerca la conversazione Chatwoot più recente per numero di telefono ───────
 async function findChatwootConversationByPhone(phone: string): Promise<number | null> {
   try {
     const searchRes = await fetch(
@@ -35,7 +37,44 @@ async function findChatwootConversationByPhone(phone: string): Promise<number | 
   }
 }
 
-// GET — Restituisce la cronologia chat dal DB
+// ─── Legge i messaggi direttamente dall'API Chatwoot (real-time) ─────────────
+async function fetchChatwootMessages(conversationId: number): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch(
+      `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+      { headers: { "api_access_token": BOT_TOKEN } }
+    );
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const msgs: Array<{
+      message_type: number;
+      content: string | null;
+      private: boolean;
+      created_at: number;
+      attachments?: Array<{ file_type: string }>;
+    }> = data.payload ?? [];
+
+    return msgs
+      .filter((m) => (m.message_type === 0 || m.message_type === 1) && !m.private)
+      .sort((a, b) => a.created_at - b.created_at)
+      .map((m) => {
+        let content = m.content?.trim() ?? "";
+        if (!content && m.attachments?.length) {
+          content = "📎 Allegato ricevuto";
+        }
+        return {
+          role: (m.message_type === 0 ? "user" : "assistant") as "user" | "assistant",
+          content,
+        };
+      })
+      .filter((m) => m.content.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+// GET — Legge messaggi da Chatwoot direttamente (real-time), con fallback al DB
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -46,20 +85,50 @@ export async function GET(
   const { id } = await params;
   const lead = await prisma.lead.findUnique({ where: { id }, select: { telefono: true } });
 
-  // Nessun telefono → sezione nascosta
   if (!lead?.telefono) return NextResponse.json({ messages: [], hasPhone: false });
 
   const phone = lead.telefono.replace(/^\+/, "");
   const conv = await prisma.waConversation.findUnique({ where: { phone } });
 
-  // Telefono presente ma nessuna conversazione ancora → sezione visibile, messaggi vuoti
-  if (!conv) return NextResponse.json({ messages: [], hasPhone: true, completato: false, hasDirectLink: false });
+  // Cerca il chatwootConversationId: prima nel DB, poi via ricerca Chatwoot API
+  let chatwootConvId = conv?.chatwootConversationId ?? null;
 
+  if (!chatwootConvId && CHATWOOT_URL && BOT_TOKEN) {
+    chatwootConvId = await findChatwootConversationByPhone(phone);
+    if (chatwootConvId) {
+      // Salva nel DB per le chiamate successive
+      if (conv) {
+        await prisma.waConversation.update({
+          where: { phone },
+          data: { chatwootConversationId: chatwootConvId },
+        });
+      }
+      console.log(`[wa-chat GET] chatwootConversationId trovato e salvato: ${chatwootConvId}`);
+    }
+  }
+
+  // Se abbiamo il conversationId, leggi i messaggi da Chatwoot direttamente
+  if (chatwootConvId) {
+    const chatwootMessages = await fetchChatwootMessages(chatwootConvId);
+
+    // Se Chatwoot ha restituito messaggi, usali (più aggiornati del DB)
+    if (chatwootMessages.length > 0) {
+      return NextResponse.json({
+        messages: chatwootMessages,
+        hasPhone: true,
+        completato: conv?.completato ?? false,
+        hasDirectLink: true,
+      });
+    }
+  }
+
+  // Fallback: usa i messaggi salvati nel DB (se presenti)
+  const dbMessages = (conv?.messages as ChatMessage[]) ?? [];
   return NextResponse.json({
-    messages: conv.messages,
+    messages: dbMessages,
     hasPhone: true,
-    completato: conv.completato,
-    hasDirectLink: !!conv.chatwootConversationId,
+    completato: conv?.completato ?? false,
+    hasDirectLink: !!chatwootConvId,
   });
 }
 
@@ -80,17 +149,16 @@ export async function POST(
 
   let chatwootConvId = conv?.chatwootConversationId ?? null;
 
-  // Fallback: se l'ID non è nel DB, cercalo su Chatwoot tramite telefono
+  // Fallback: cerca su Chatwoot se non salvato nel DB
   if (!chatwootConvId && CHATWOOT_URL && BOT_TOKEN) {
     chatwootConvId = await findChatwootConversationByPhone(phone);
-    if (chatwootConvId) {
+    if (chatwootConvId && conv) {
       await prisma.waConversation.update({ where: { phone }, data: { chatwootConversationId: chatwootConvId } });
-      console.log(`[wa-chat] chatwootConversationId trovato via API e salvato: ${chatwootConvId}`);
     }
   }
 
   if (!chatwootConvId) {
-    return NextResponse.json({ error: "Conversazione Chatwoot non trovata. Aspetta che il cliente mandi almeno un messaggio." }, { status: 404 });
+    return NextResponse.json({ error: "Conversazione Chatwoot non trovata. Il cliente deve aver mandato almeno un messaggio WhatsApp." }, { status: 404 });
   }
 
   const conversationId = chatwootConvId;
@@ -130,14 +198,14 @@ export async function POST(
 
   if (!sendRes.ok) {
     const err = await sendRes.text();
-    console.error("[wa-chat] Errore Chatwoot:", err);
+    console.error("[wa-chat POST] Errore Chatwoot:", err);
     return NextResponse.json({ error: "Errore invio messaggio" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
 }
 
-// DELETE — Resetta la conversazione WA e riapre quella Chatwoot per far ripartire il bot
+// DELETE — Resetta la conversazione WA nel DB e riapre quella Chatwoot
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -151,16 +219,15 @@ export async function DELETE(
 
   const phone = lead.telefono.replace(/^\+/, "");
 
-  // Recupera il chatwootConversationId prima di eliminare
   const existing = await prisma.waConversation.findUnique({
     where: { phone },
     select: { chatwootConversationId: true },
   });
 
   await prisma.waConversation.deleteMany({ where: { phone } });
-  console.log(`[wa-chat] Conversazione resettata per ${phone}`);
+  console.log(`[wa-chat DELETE] Conversazione resettata per ${phone}`);
 
-  // Riapre la conversazione Chatwoot (se disponibile) così il bot riceve il prossimo messaggio
+  // Tenta di riaprire la conversazione Chatwoot per far ripartire il bot
   if (existing?.chatwootConversationId && CHATWOOT_URL && BOT_TOKEN) {
     try {
       await fetch(
@@ -171,9 +238,8 @@ export async function DELETE(
           body: JSON.stringify({ status: "open" }),
         }
       );
-      console.log(`[wa-chat] Conversazione Chatwoot ${existing.chatwootConversationId} riaperta`);
     } catch {
-      // Non bloccante — il reset del DB è già avvenuto
+      // Non bloccante
     }
   }
 
