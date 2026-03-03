@@ -38,7 +38,11 @@ export async function POST(request: NextRequest) {
     // 1. Cancella la conversazione dal DB così il bot riparte da zero
     await prisma.waConversation.deleteMany({ where: { phone } });
 
-    // 2. Rimetti la conversazione in "pending" così l'Agent Bot può riprendere
+    // 2. Invia messaggio di conferma al cliente
+    await sendChatwootMessage(conversationId, "Conversazione resettata. Ciao! 👋 Come posso aiutarti?");
+
+    // 3. Rimetti la conversazione in "pending" DOPO il messaggio,
+    //    così il bot riceve i prossimi messaggi del cliente
     if (CHATWOOT_URL && API_TOKEN) {
       await fetch(
         `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/toggle_status`,
@@ -49,9 +53,6 @@ export async function POST(request: NextRequest) {
         }
       ).catch(() => {});
     }
-
-    // 3. Invia messaggio di conferma al cliente
-    await sendChatwootMessage(conversationId, "Conversazione resettata. Ciao! 👋 Come posso aiutarti?");
 
     return NextResponse.json({ ok: true });
   } catch (error) {
