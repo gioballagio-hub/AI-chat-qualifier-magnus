@@ -14,9 +14,11 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevCountRef = useRef(0);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -35,8 +37,13 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
+  // Scrolla in fondo solo quando arrivano nuovi messaggi (non al caricamento iniziale)
   useEffect(() => {
-    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!isOpen) return;
+    if (messages.length > prevCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevCountRef.current = messages.length;
   }, [messages, isOpen]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,6 +93,27 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
     }
   };
 
+  const resetConversation = async () => {
+    if (!confirm("Resettare la conversazione? Tutti i messaggi WA verranno cancellati e il bot potrà ripartire da zero.")) return;
+    setResetting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/leads/${leadId}/wa-chat`, { method: "DELETE" });
+      if (res.ok) {
+        setMessages([]);
+        setHasConversation(false);
+        setCompletato(false);
+        prevCountRef.current = 0;
+      } else {
+        setError("Errore nel reset");
+      }
+    } catch {
+      setError("Errore di rete");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (hasConversation === null || !hasConversation) return null;
 
   return (
@@ -99,13 +127,28 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
                 Lead qualificato
               </span>
             )}
+            {messages.length > 0 && (
+              <span className="text-xs text-gray-400">
+                {messages.length} messaggi
+              </span>
+            )}
           </div>
-          <button
-            onClick={() => setIsOpen((v) => !v)}
-            className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
-          >
-            {isOpen ? "▲ Chiudi" : "▼ Apri chat"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={resetConversation}
+              disabled={resetting}
+              title="Resetta conversazione (equivalente a MAGNUS RESET)"
+              className="text-xs text-red-400 hover:text-red-600 cursor-pointer transition-colors disabled:opacity-40"
+            >
+              {resetting ? "…" : "🔄 Reset"}
+            </button>
+            <button
+              onClick={() => setIsOpen((v) => !v)}
+              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+            >
+              {isOpen ? "▲ Chiudi" : "▼ Apri chat"}
+            </button>
+          </div>
         </div>
       </CardHeader>
 
@@ -113,6 +156,9 @@ export default function WaChatSection({ leadId }: { leadId: string }) {
         <CardBody className="p-0">
           {/* Messaggi */}
           <div className="h-72 overflow-y-auto px-4 py-3 space-y-2 bg-gray-50">
+            {messages.length > 3 && (
+              <p className="text-center text-xs text-gray-400 pb-1">↑ scorri per vedere i messaggi precedenti</p>
+            )}
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "assistant" ? "justify-end" : "justify-start"}`}>
                 <div
