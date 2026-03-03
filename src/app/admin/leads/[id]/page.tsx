@@ -11,8 +11,7 @@ import Card, { CardBody, CardHeader } from "@/components/ui/Card";
 import { useIsAdmin } from "@/lib/session-context";
 import NoteSection from "@/components/admin/NoteSection";
 import ActivitySection from "@/components/admin/ActivitySection";
-import FollowUpEmailSection from "@/components/admin/FollowUpEmailSection";
-import WaChatSection from "@/components/admin/WaChatSection";
+import CommunicationsPanel from "@/components/admin/CommunicationsPanel";
 
 const statusLabel: Record<LeadStatus, string> = {
   NEW: "Nuovo",
@@ -652,17 +651,15 @@ export default function LeadDetailPage() {
             </CardBody>
           </Card>
 
-          {/* Follow-up email — visibile se ci sono campi mancanti */}
-          {lead.missingFields.length > 0 && lead.emailContatto && (
-            <FollowUpEmailSection
+          {/* Pannello comunicazioni — WhatsApp + Email */}
+          {(lead.telefono || lead.emailContatto) && (
+            <CommunicationsPanel
               leadId={lead.id}
               emailContatto={lead.emailContatto}
-              missingFields={lead.missingFields}
+              missingFields={lead.missingFields as string[]}
+              hasTelefono={!!lead.telefono}
             />
           )}
-
-          {/* Chat WhatsApp — visibile solo se il lead ha una conversazione WA */}
-          <WaChatSection leadId={lead.id} />
 
         </div>
 
